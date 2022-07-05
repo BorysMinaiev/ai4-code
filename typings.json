@@ -1,0 +1,6 @@
+{
+  "dependencies": {},
+  "devDependencies": {
+    "csv-parse": "registry:npm/csv-parse#1.0.2+20160405213407"
+  }
+}
