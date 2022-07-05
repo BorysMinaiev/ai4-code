@@ -1,3 +1,6 @@
+const NB_ID = "nb_id";
+const MY_ORDER = "my_order";
+const CUR_SOURCE = "cur_source";
 
 const OFFSET = 30;
 const R = 15;
@@ -80,13 +83,11 @@ class DrawingApp {
         canvas.addEventListener("touchmove", this.dragEventHandler);
         canvas.addEventListener("touchend", this.releaseEventHandler);
         canvas.addEventListener("touchcancel", this.cancelEventHandler);
-
-        document.getElementById('clear')
-            .addEventListener("click", this.clearEventHandler);
     }
 
 
     public redraw2() {
+        // this.canvas.width = this.canvas.offsetWidth;
         this.clearCanvas();
         const nb_id = get_current_nb_id();
         if (nb_id == "") {
@@ -119,20 +120,38 @@ class DrawingApp {
             ctx.beginPath();
             ctx.moveTo(OFFSET, y1);
             ctx.lineTo(width - OFFSET, y2);
+            if (currentNb.nb_id == nb_id) {
+                const cell_type = currentNb.cell_type[correct_order[i]];
+                if (cell_type == "markdown") {
+                    ctx.strokeStyle = 'black';
+                } else if (cell_type == "code") {
+                    ctx.strokeStyle = 'blue';
+                } else {
+                    throw "bad cell_type";
+                }
+            } else {
+                ctx.strokeStyle = 'black';
+            }
             if (correct_order[i] == lastChosenId) {
-                ctx.strokeStyle = '#0000ff';
+                ctx.strokeStyle = 'orange';
                 ctx.lineWidth = 2;
             } else
                 if (correct_order[i] == lastClosestId) {
                     ctx.strokeStyle = '#ff0000';
                     ctx.lineWidth = 2;
                 } else {
-                    ctx.strokeStyle = '#000000';
                     ctx.lineWidth = 1;
                 }
             ctx.stroke();
             ctx.closePath();
 
+        }
+
+        get_elem(CUR_SOURCE).innerHTML = lastChosenId;
+        if (currentNb.nb_id == nb_id) {
+            const source = currentNb.source[lastChosenId];
+            console.log(source);
+            get_elem(CUR_SOURCE).textContent = source;
         }
     }
 
@@ -233,15 +252,14 @@ const fetchOrders = async () => {
                 const item = data[i];
                 correctOrders[item[0]] = item[1].split(" ");
             }
-            console.log("done!");
+            console.log("done2!");
             app.redraw2();
+            reloadNotebook();
         }
     })
 
 }
 
-const NB_ID = "nb_id";
-const MY_ORDER = "my_order";
 
 function get_order_key(nb_id: string) {
     return MY_ORDER + "_" + nb_id;
@@ -294,3 +312,42 @@ function setInputHandlers() {
 
 setInputHandlers();
 fetchOrders();
+
+type Notebook = {
+    nb_id: string,
+    cell_type: HashTable<string>,
+    source: HashTable<string>,
+};
+
+var currentNb: Notebook = {
+    nb_id: "",
+    cell_type: {},
+    source: {}
+};
+
+const reloadNotebook = async () => {
+    const nb_id = get_current_nb_id();
+    if (nb_id == "") {
+        return;
+    }
+    const correct_order = correctOrders[nb_id];
+    if (correct_order.length == 0) {
+        return;
+    }
+    if (currentNb.nb_id == nb_id) {
+        return;
+    }
+    console.log('reload', nb_id);
+    const response = await fetch('http://localhost:8000/AI4Code/train/' + nb_id + '.json');
+    const data = await response.json();
+    console.log(data);
+    console.log(data['cell_type']);
+    currentNb = {
+        nb_id,
+        cell_type: data['cell_type'],
+        source: data['source']
+    };
+    console.log('reloaded');
+    app.redraw2();
+}
+

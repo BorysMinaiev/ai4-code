@@ -1,0 +1,21 @@
+.column {
+    float: left;
+    /* width: 50%; */
+}
+
+/* Clear floats after the columns */
+.row:after {
+    content: "";
+    display: table;
+    clear: both;
+}
+
+#canvas {
+    /* min-width: 100%; */
+    border: 1px solid black;
+    /* width: 800; */
+}
+
+#cur_source {
+    margin: 30;
+}
