@@ -81,3 +81,9 @@ def save_model(model, suffix):
     output_dir = os.path.join(output_dir, 'model-{}.bin'.format(suffix)) 
     torch.save(model_to_save.state_dict(), output_dir)
     print("Saved model to {}".format(output_dir))    
+
+def get_code_cells(nb):
+    return nb[nb['cell_type'] == 'code'].index
+
+def get_markdown_cells(nb):
+    return nb[nb['cell_type'] == 'markdown'].index        

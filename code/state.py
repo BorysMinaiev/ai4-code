@@ -12,19 +12,23 @@ class State:
     df_ancestors:list
     all_train_nb:list
     all_validate_nb:list
+    cur_train_nbs:list
+    config:Config
 
 
-    def __init__(self):
-        pass
+    def __init__(self, config:Config):
+        self.config = config
+        self.load_df_orders()
+        self.load_df_ancestors()
 
-    def load_df_orders(self, config:Config):
+    def load_df_orders(self):
         self.df_orders = pd.read_csv(
-            config.data_dir / 'train_orders.csv',
+            self.config.data_dir / 'train_orders.csv',
             index_col='id',
         ).squeeze("columns").str.split()  # Split the string representation of cell_ids into a list
 
-    def load_test_nbs(self, config:Config):
-        paths_test = list((config.data_dir / 'test').glob('*.json'))
+    def load_test_nbs(self):
+        paths_test = list((self.config.data_dir / 'test').glob('*.json'))
         notebooks_test = [
             common.read_notebook(path) for path in tqdm(paths_test, desc='Test NBs')
         ]
@@ -35,8 +39,8 @@ class State:
             .sort_index(level='id', sort_remaining=False)
         )
 
-    def load_df_ancestors(self, config:Config):
-        self.df_ancestors = pd.read_csv(config.data_dir / 'train_ancestors.csv', index_col='id')
+    def load_df_ancestors(self):
+        self.df_ancestors = pd.read_csv(self.config.data_dir / 'train_ancestors.csv', index_col='id')
 
         # TODO: rewrite this to use the dataframe
         cnt_by_group = {}
@@ -61,21 +65,12 @@ class State:
         self.all_train_nb = good_notebooks.sample(frac=0.9, random_state=787788)
         self.all_validate_nb = good_notebooks.drop(self.all_train_nb.index)
 
-    def load_train_nbs(self, config:Config, num):
-        global df
-
-        paths_train = [config.data_dir / 'train' / '{}.json'.format(id) for id in self.all_train_nb.head(num)]
+    def load_train_nbs(self, num : int):
+        paths_train = [self.config.data_dir / 'train' / '{}.json'.format(id) for id in self.all_train_nb.head(num)]
         notebooks_train = [
             common.read_notebook(path) for path in tqdm(paths_train, desc='Train NBs')
         ]
-        df = (
-            pd.concat(notebooks_train)
-            .set_index('id', append=True)
-            .swaplevel()
-            .sort_index(level='id', sort_remaining=False)
-        )
-
-        df
+        self.cur_train_nbs = pd.concat(notebooks_train).set_index('id', append=True).swaplevel().sort_index(level='id', sort_remaining=False)
 
 
     def hello(self):
