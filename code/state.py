@@ -3,6 +3,7 @@ from config import Config
 import pandas as pd
 from tqdm import tqdm
 import common
+import torch
 
 @dataclass
 class State:
@@ -14,10 +15,12 @@ class State:
     all_validate_nb:list
     cur_train_nbs:list
     config:Config
+    device:str
 
 
     def __init__(self, config:Config):
         self.config = config
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.load_df_orders()
         self.load_df_ancestors()
 
