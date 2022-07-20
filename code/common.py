@@ -73,15 +73,20 @@ def get_tokens(text):
     return unixcoder_model.tokenize([text],max_length=512,mode="<encoder-only>")    
 
 def save_model(model, suffix):
-    #output_dir = Path("../working/")                       
     output_dir = Path(".")
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)   
     model_to_save = model.encoder.model
     output_dir = os.path.join(output_dir, 'model-{}.bin'.format(suffix)) 
     torch.save(model_to_save.state_dict(), output_dir)
     print("Saved model to {}".format(output_dir))    
 
+def save_roberta_model(model, suffix):
+    output_dir = Path(".")
+    model_to_save = model
+    output_dir = os.path.join(output_dir, 'roberta-model-{}.bin'.format(suffix)) 
+    torch.save(model_to_save.state_dict(), output_dir)
+    print("Saved model to {}".format(output_dir))    
+
+    
 def get_code_cells(nb):
     return nb[nb['cell_type'] == 'code'].index
 
