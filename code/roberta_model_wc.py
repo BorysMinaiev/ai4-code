@@ -98,9 +98,9 @@ class MyRobertaModel(nn.Module):
                 }
 
     @torch.no_grad()
-    def predict(self, state: State, texts):
+    def predict(self, state: State, samples):
         result = []
-        batches = split_into_batches(texts, state.config.batch_size)
+        batches = split_into_batches(samples, state.config.batch_size)
         for batch in batches:
             encoded = self.encode(state, batch)
             pred = self(encoded['input_ids'], encoded['attention_mask'])
