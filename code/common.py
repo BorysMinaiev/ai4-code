@@ -81,9 +81,8 @@ def save_model(model, suffix):
 
 def save_roberta_model(model, suffix):
     output_dir = Path(".")
-    model_to_save = model
     output_dir = os.path.join(output_dir, 'roberta-model-{}.bin'.format(suffix)) 
-    torch.save(model_to_save.state_dict(), output_dir)
+    torch.save(model.state_dict(), output_dir)
     print("Saved model to {}".format(output_dir))    
 
     

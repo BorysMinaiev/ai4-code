@@ -6,7 +6,7 @@ from torch.optim import AdamW
 from transformers import get_linear_schedule_with_warmup
 import wandb
 from wandb_helper import init_wandb
-import tqdm
+from tqdm import tqdm
 from dataclasses import dataclass
 from common import split_into_batches
 from state import State
@@ -20,11 +20,11 @@ class MyRobertaModel(nn.Module):
     def __init__(self, preload_state=None):
         super(MyRobertaModel, self).__init__()
         self.roberta = RobertaModel.from_pretrained('roberta-base')
-        if preload_state is not None:
-            print('Preloading state:', preload_state)
-            self.roberta.load_state_dict(torch.load(preload_state)) 
         self.tokenizer = RobertaTokenizer.from_pretrained('roberta-base')
         self.top = nn.Linear(768, 1)
+        if preload_state is not None:
+            print('Preloading state:', preload_state)
+            self.load_state_dict(torch.load(preload_state)) 
         self.name = preload_state if preload_state is not None else "0"
         
     def forward(self, input_ids, attention_mask):
@@ -70,7 +70,7 @@ def train(state, model, dataset):
     criterion = torch.nn.L1Loss()
     for batch in tqdm(dataset):
         texts = list(map(lambda x:x.text, batch))
-        encoded = model.encode(texts, state)
+        encoded = model.encode(state, texts)
         input_ids = encoded['input_ids']
         attention_mask = encoded['attention_mask']
         target = list(map(lambda x:[x.relative_position], batch))
