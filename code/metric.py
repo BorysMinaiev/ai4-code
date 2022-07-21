@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from bisect import bisect
 
 
@@ -11,13 +12,12 @@ def count_inversions(a):
         sorted_so_far.insert(j, u)  # O(N)
     return inversions
 
-from dataclasses import dataclass
 
-@dataclass 
+@dataclass
 class Score:
-    cur_score:float
-    total_inversions:int
-    total_pairs:int
+    cur_score: float
+    total_inversions: int
+    total_pairs: int
 
     def __init__(self, total_inversions, total_pairs):
         self.total_inversions = total_inversions
@@ -35,11 +35,13 @@ def kendall_tau_typed(ground_truth, predictions):
     total_inversions = 0  # total inversions in predicted ranks across all instances
     total_2max = 0  # maximum possible inversions across all instances
     for gt, pred in zip(ground_truth, predictions):
-        ranks = [gt.index(x) for x in pred]  # rank predicted order in terms of ground truth
+        # rank predicted order in terms of ground truth
+        ranks = [gt.index(x) for x in pred]
         total_inversions += count_inversions(ranks)
         n = len(gt)
         total_2max += n * (n - 1)
     return Score(total_inversions=total_inversions, total_pairs=total_2max)
+
 
 def kendall_tau(ground_truth, predictions):
     score = kendall_tau_typed(ground_truth, predictions)
@@ -50,6 +52,7 @@ def sum_scores(a, b):
     total_inversions = a[1] + b[1]
     total_2max = a[2] + b[2]
     return [1 - 4 * total_inversions / total_2max, total_inversions, total_2max]
+
 
 def calc_nb_score(my_order, correct_order):
     ground_truth = [correct_order]

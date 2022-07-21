@@ -1,11 +1,12 @@
 # Copied from: https://github.com/microsoft/CodeBERT/blob/master/UniXcoder/unixcoder.py
 
-# Copyright (c) Microsoft Corporation. 
+# Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
 import torch
 import torch.nn as nn
 from transformers import RobertaTokenizer, RobertaModel, RobertaConfig
+
 
 class UniXcoder(nn.Module):
     def __init__(self, model_name, state_dict=None):
@@ -13,61 +14,70 @@ class UniXcoder(nn.Module):
             Build UniXcoder.
             Parameters:
             * `model_name`- huggingface model card name. e.g. microsoft/unixcoder-base
-        """        
+        """
         super(UniXcoder, self).__init__()
-        self.tokenizer = RobertaTokenizer.from_pretrained(model_name, use_fast=True)
+        self.tokenizer = RobertaTokenizer.from_pretrained(
+            model_name, use_fast=True)
         self.config = RobertaConfig.from_pretrained(model_name)
         self.config.is_decoder = True
-        self.model = RobertaModel.from_pretrained(model_name, config=self.config)
+        self.model = RobertaModel.from_pretrained(
+            model_name, config=self.config)
 
         if state_dict is not None:
-            self.model.load_state_dict(torch.load(state_dict))   
-        
-        self.register_buffer("bias", torch.tril(torch.ones((1024, 1024), dtype=torch.uint8)).view(1,1024, 1024))
-        self.lm_head = nn.Linear(self.config.hidden_size, self.config.vocab_size, bias=False)
+            self.model.load_state_dict(torch.load(state_dict))
+
+        self.register_buffer("bias", torch.tril(torch.ones(
+            (1024, 1024), dtype=torch.uint8)).view(1, 1024, 1024))
+        self.lm_head = nn.Linear(
+            self.config.hidden_size, self.config.vocab_size, bias=False)
         self.lm_head.weight = self.model.embeddings.word_embeddings.weight
         self.lsm = nn.LogSoftmax(dim=-1)
-        
-        self.tokenizer.add_tokens(["<mask0>"],special_tokens=True)
+
+        self.tokenizer.add_tokens(["<mask0>"], special_tokens=True)
         #self.tokenizer.add_tokens(["<END>"], special_tokens=True)
-          
+
     def tokenize(self, inputs, mode="<encoder-only>", max_length=512, padding=False):
         """ 
         Convert string to token ids 
-                
+
         Parameters:
         * `inputs`- list of input strings.
         * `max_length`- The maximum total source sequence length after tokenization.
         * `padding`- whether to pad source sequence length to max_length. 
         * `mode`- which mode the sequence will use. i.e. <encoder-only>, <decoder-only>, <encoder-decoder>
         """
-        assert mode in ["<encoder-only>", "<decoder-only>", "<encoder-decoder>"]
-        
+        assert mode in ["<encoder-only>",
+                        "<decoder-only>", "<encoder-decoder>"]
+
         tokenizer = self.tokenizer
-        
+
         tokens_ids = []
         for x in inputs:
             tokens = tokenizer.tokenize(x)
             if mode == "<encoder-only>":
                 tokens = tokens[:max_length-4]
-                tokens = [tokenizer.cls_token,mode,tokenizer.sep_token] + tokens + [tokenizer.sep_token]                
+                tokens = [tokenizer.cls_token, mode,
+                          tokenizer.sep_token] + tokens + [tokenizer.sep_token]
             elif mode == "<decoder-only>":
                 tokens = tokens[-(max_length-3):]
-                tokens = [tokenizer.cls_token,mode,tokenizer.sep_token] + tokens
+                tokens = [tokenizer.cls_token, mode,
+                          tokenizer.sep_token] + tokens
             else:
                 tokens = tokens[:max_length-5]
-                tokens = [tokenizer.cls_token,mode,tokenizer.sep_token] + tokens + [tokenizer.sep_token]
-                
+                tokens = [tokenizer.cls_token, mode,
+                          tokenizer.sep_token] + tokens + [tokenizer.sep_token]
+
             tokens_id = tokenizer.convert_tokens_to_ids(tokens)
             tokens_ids.append(tokens_id)
 
         if padding:
             cur_max_length = len(max(tokens_ids, key=len))
-            tokens_ids = list(map(lambda l: l + [self.config.pad_token_id] * (cur_max_length-len(l)), tokens_ids))
+            tokens_ids = list(map(
+                lambda l: l + [self.config.pad_token_id] * (cur_max_length-len(l)), tokens_ids))
         return tokens_ids
-            
-    def decode(self, source_ids):   
-        """ Convert token ids to string """      
+
+    def decode(self, source_ids):
+        """ Convert token ids to string """
         predictions = []
         for x in source_ids:
             prediction = []
@@ -76,75 +86,83 @@ class UniXcoder(nn.Module):
                 t = list(t)
                 if 0 in t:
                     t = t[:t.index(0)]
-                text = self.tokenizer.decode(t,clean_up_tokenization_spaces=False)
-                prediction.append(text)        
+                text = self.tokenizer.decode(
+                    t, clean_up_tokenization_spaces=False)
+                prediction.append(text)
             predictions.append(prediction)
         return predictions
-    
-    def forward(self, source_ids):   
+
+    def forward(self, source_ids):
         """ Obtain token embeddings and sentence embeddings """
         mask = source_ids.ne(self.config.pad_token_id)
-        token_embeddings = self.model(source_ids,attention_mask = mask.unsqueeze(1) * mask.unsqueeze(2))[0]
-        sentence_embeddings = (token_embeddings * mask.unsqueeze(-1)).sum(1) / mask.sum(-1).unsqueeze(-1)
-        return token_embeddings, sentence_embeddings       
+        token_embeddings = self.model(
+            source_ids, attention_mask=mask.unsqueeze(1) * mask.unsqueeze(2))[0]
+        sentence_embeddings = (
+            token_embeddings * mask.unsqueeze(-1)).sum(1) / mask.sum(-1).unsqueeze(-1)
+        return token_embeddings, sentence_embeddings
 
-    def generate(self, source_ids, decoder_only = True, eos_id = None, beam_size = 5, max_length = 64):
+    def generate(self, source_ids, decoder_only=True, eos_id=None, beam_size=5, max_length=64):
         """ Generate sequence given context (source_ids) """
-        
+
         # Set encoder mask attention matrix: bidirectional for <encoder-decoder>, unirectional for <decoder-only>
         if decoder_only:
-            mask = self.bias[:,:source_ids.size(-1),:source_ids.size(-1)]
+            mask = self.bias[:, :source_ids.size(-1), :source_ids.size(-1)]
         else:
             mask = source_ids.ne(self.config.pad_token_id)
-            mask = mask.unsqueeze(1) * mask.unsqueeze(2)  
-            
+            mask = mask.unsqueeze(1) * mask.unsqueeze(2)
+
         if eos_id is None:
             eos_id = self.config.eos_token_id
-        
+
         device = source_ids.device
-        
+
         # Decoding using beam search
-        preds = []       
-        zero = torch.LongTensor(1).fill_(0).to(device)   
+        preds = []
+        zero = torch.LongTensor(1).fill_(0).to(device)
         source_len = list(source_ids.ne(1).sum(-1).cpu().numpy())
         length = source_ids.size(-1)
-        encoder_output = self.model(source_ids,attention_mask=mask)
+        encoder_output = self.model(source_ids, attention_mask=mask)
         for i in range(source_ids.shape[0]):
-            context = [[x[i:i+1,:,:source_len[i]].repeat(beam_size,1,1,1) for x in y] 
-                     for y in encoder_output.past_key_values]
-            beam = Beam(beam_size,eos_id,device)
+            context = [[x[i:i+1, :, :source_len[i]].repeat(beam_size, 1, 1, 1) for x in y]
+                       for y in encoder_output.past_key_values]
+            beam = Beam(beam_size, eos_id, device)
             input_ids = beam.getCurrentState().clone()
-            context_ids = source_ids[i:i+1,:source_len[i]].repeat(beam_size,1)
-            out = encoder_output.last_hidden_state[i:i+1,:source_len[i]].repeat(beam_size,1,1)
-            for _ in range(max_length): 
+            context_ids = source_ids[i:i+1,
+                                     :source_len[i]].repeat(beam_size, 1)
+            out = encoder_output.last_hidden_state[i:i +
+                                                   1, :source_len[i]].repeat(beam_size, 1, 1)
+            for _ in range(max_length):
                 if beam.done():
                     break
-                if _ == 0: 
-                    hidden_states = out[:,-1,:]
+                if _ == 0:
+                    hidden_states = out[:, -1, :]
                     out = self.lsm(self.lm_head(hidden_states)).data
                     beam.advance(out)
-                    input_ids.data.copy_(input_ids.data.index_select(0, beam.getCurrentOrigin()))
+                    input_ids.data.copy_(input_ids.data.index_select(
+                        0, beam.getCurrentOrigin()))
                     input_ids = beam.getCurrentState().clone()
                 else:
                     length = context_ids.size(-1)+input_ids.size(-1)
-                    out = self.model(input_ids,attention_mask=self.bias[:,context_ids.size(-1):length,:length],
-                                       past_key_values=context).last_hidden_state
-                    hidden_states = out[:,-1,:]
+                    out = self.model(input_ids, attention_mask=self.bias[:, context_ids.size(-1):length, :length],
+                                     past_key_values=context).last_hidden_state
+                    hidden_states = out[:, -1, :]
                     out = self.lsm(self.lm_head(hidden_states)).data
                     beam.advance(out)
-                    input_ids.data.copy_(input_ids.data.index_select(0, beam.getCurrentOrigin()))
-                    input_ids = torch.cat((input_ids,beam.getCurrentState().clone()),-1)
+                    input_ids.data.copy_(input_ids.data.index_select(
+                        0, beam.getCurrentOrigin()))
+                    input_ids = torch.cat(
+                        (input_ids, beam.getCurrentState().clone()), -1)
             hyp = beam.getHyp(beam.getFinal())
             pred = beam.buildTargetTokens(hyp)[:beam_size]
-            pred = [torch.cat([x.view(-1) for x in p]+[zero]*(max_length-len(p))).view(1,-1) for p in pred]
-            preds.append(torch.cat(pred,0).unsqueeze(0))
+            pred = [torch.cat([x.view(-1) for x in p]+[zero]
+                              * (max_length-len(p))).view(1, -1) for p in pred]
+            preds.append(torch.cat(pred, 0).unsqueeze(0))
 
-        preds = torch.cat(preds,0)    
+        preds = torch.cat(preds, 0)
 
-        return preds  
-    
+        return preds
 
-    
+
 class Beam(object):
     def __init__(self, size, eos, device):
         self.size = size
@@ -202,7 +220,6 @@ class Beam(object):
         self.prevKs.append(prevK)
         self.nextYs.append((bestScoresId - prevK * numWords))
 
-
         for i in range(self.nextYs[-1].size(0)):
             if self.nextYs[-1][i] == self._eos:
                 s = self.scores[i]
@@ -220,51 +237,51 @@ class Beam(object):
             self.finished.append((self.scores[0], len(self.nextYs) - 1, 0))
         self.finished.sort(key=lambda a: -a[0])
         if len(self.finished) != self.size:
-            unfinished=[]
+            unfinished = []
             for i in range(self.nextYs[-1].size(0)):
                 if self.nextYs[-1][i] != self._eos:
                     s = self.scores[i]
-                    unfinished.append((s, len(self.nextYs) - 1, i)) 
+                    unfinished.append((s, len(self.nextYs) - 1, i))
             unfinished.sort(key=lambda a: -a[0])
-            self.finished+=unfinished[:self.size-len(self.finished)]
+            self.finished += unfinished[:self.size-len(self.finished)]
         return self.finished[:self.size]
 
     def getHyp(self, beam_res):
         """
         Walk back to construct the full hypothesis.
         """
-        hyps=[]
-        for _,timestep, k in beam_res:
+        hyps = []
+        for _, timestep, k in beam_res:
             hyp = []
             for j in range(len(self.prevKs[:timestep]) - 1, -1, -1):
                 hyp.append(self.nextYs[j+1][k])
                 k = self.prevKs[j][k]
             hyps.append(hyp[::-1])
         return hyps
-    
+
     def buildTargetTokens(self, preds):
-        sentence=[]
+        sentence = []
         for pred in preds:
             tokens = []
             for tok in pred:
-                if tok==self._eos:
+                if tok == self._eos:
                     break
                 tokens.append(tok)
             sentence.append(tokens)
         return sentence
-        
+
 
 # Partially coied from: https://github.com/microsoft/CodeBERT/blob/567dd49a4b916835f93fb95709de714b8772fea2/UniXcoder/downstream-tasks/code-search/model.py
 
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
-import torch.nn as nn
-import torch    
-class Model(nn.Module):   
+
+
+class Model(nn.Module):
     def __init__(self, encoder):
         super(Model, self).__init__()
         self.encoder = encoder
-      
-    def forward(self, inputs): 
+
+    def forward(self, inputs):
         outputs = self.encoder(inputs)[1]
-        return torch.nn.functional.normalize(outputs, p=2, dim=1)        
+        return torch.nn.functional.normalize(outputs, p=2, dim=1)
