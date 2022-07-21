@@ -68,12 +68,18 @@ class State:
         self.all_train_nb = good_notebooks.sample(frac=0.9, random_state=787788)
         self.all_validate_nb = good_notebooks.drop(self.all_train_nb.index)
 
-    def load_train_nbs(self, num : int):
-        paths_train = [self.config.data_dir / 'train' / '{}.json'.format(id) for id in self.all_train_nb.head(num)]
+    def load_train_nbs_helper(self, ids):
+        paths_train = [self.config.data_dir / 'train' / '{}.json'.format(id) for id in ids]
         notebooks_train = [
             common.read_notebook(path) for path in tqdm(paths_train, desc='Train NBs')
         ]
         self.cur_train_nbs = pd.concat(notebooks_train).set_index('id', append=True).swaplevel().sort_index(level='id', sort_remaining=False)
+
+    def load_train_nbs(self, num : int):
+        self.load_train_nbs_helper(self.all_train_nb.head(num))
+
+    def load_train_nbs_tail(self, num : int):
+        self.load_train_nbs_helper(self.all_train_nb.tail(num))
 
 
     def hello(self):

@@ -92,3 +92,7 @@ def get_code_cells(nb):
 
 def get_markdown_cells(nb):
     return nb[nb['cell_type'] == 'markdown'].index        
+
+def split_into_batches(lst, batch_size):
+    num_chunks = (len(lst) + batch_size - 1) // batch_size
+    return list(np.array_split(lst, num_chunks))
