@@ -169,12 +169,17 @@ class MyRobertaModel(nn.Module):
                 result.append(fun.apply(res))
         return result
 
-    def save(self, suffix):
+    def save(self, suffix, optimizer=None):
         output_dir = Path(".")
-        output_dir = os.path.join(
+        output_path = os.path.join(
             output_dir, 'roberta-wc-model-{}.bin'.format(suffix))
-        torch.save(self.state_dict(), output_dir)
-        print("Saved model to {}".format(output_dir))
+        torch.save(self.state_dict(), output_path)
+        print("Saved model to {}".format(output_path))
+        if optimizer is not None:
+            output_path = os.path.join(
+                output_dir, 'roberta-wc-model-{}.opt.bin'.format(suffix))
+            print('optimizer state dict:', optimizer.state_dict())
+            torch.save(optimizer.state_dict(), output_path)
 
 
 def train(state, model, dataset, save_to_wandb=False):
@@ -214,5 +219,9 @@ def train(state, model, dataset, save_to_wandb=False):
             print('Saving modela after', b_id)
             model.save('step-batch-' + str(b_id))
 
+        break
+
     if save_to_wandb:
         wandb.finish()
+
+    model.save('cur-final', optimizer=optimizer)
