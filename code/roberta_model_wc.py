@@ -16,7 +16,10 @@ from state import State
 
 import torch
 
-max_tokenizer_len = 512
+md_max_len = 64
+code_max_len = 20
+cnt_texts = 20
+max_tokenizer_len = md_max_len + cnt_texts * (1 + code_max_len) + 3
 
 
 @dataclass
@@ -54,10 +57,9 @@ class MyRobertaModel(nn.Module):
 
     def encode_sample(self, sample: LearnSample):
         input_ids = [self.tokenizer.cls_token_id] + \
-            self.encode_one(sample.text, max_length=64) + \
+            self.encode_one(sample.text, max_length=md_max_len) + \
             [self.tokenizer.sep_token_id]
         filtered_code_texts = []
-        cnt_texts = 20
         if len(sample.code_texts) <= cnt_texts:
             filtered_code_texts = sample.code_texts
         else:
@@ -67,10 +69,11 @@ class MyRobertaModel(nn.Module):
                 assert pos != prev_pos
                 prev_pos = pos
                 filtered_code_texts.append(sample.code_texts[pos])
-            filtered_code_texts.append(sample.code_texts[-1])
+            if cnt_texts != 0:
+                filtered_code_texts.append(sample.code_texts[-1])
 
         for text in filtered_code_texts:
-            input_ids.extend(self.encode_one(text, max_length=21))
+            input_ids.extend(self.encode_one(text, max_length=code_max_len))
             input_ids.append(self.tokenizer.sep_token_id)
 
         assert len(input_ids) <= max_tokenizer_len
@@ -118,17 +121,17 @@ class MyRobertaModel(nn.Module):
 def train(state, model, dataset, save_to_wandb=False):
     print('start training...')
     np.random.seed(123)
-    learning_rate = 3e-5
+    learning_rate = 5e-5
     optimizer = AdamW(model.parameters(), lr=learning_rate, eps=1e-8)
     scheduler = get_linear_schedule_with_warmup(
         optimizer, num_warmup_steps=0, num_training_steps=len(dataset))
     model.train()
     print('training... num batches:', len(dataset))
     if save_to_wandb:
-        init_wandb(name='test-roberta-wc-training-1k')
+        init_wandb(name='test-roberta-wc-training-1k-'+str(md_max_len)+':'+str(code_max_len)+':'+str(cnt_texts))
 
     criterion = torch.nn.L1Loss()
-    for batch in tqdm(dataset):
+    for b_id, batch in enumerate(tqdm(dataset)):
         encoded = model.encode(state, batch)
         input_ids = encoded['input_ids']
         attention_mask = encoded['attention_mask']
@@ -146,6 +149,10 @@ def train(state, model, dataset, save_to_wandb=False):
         scheduler.step()
         if save_to_wandb:
             wandb.log({'roberta_loss': loss.item()})
+        
+        if b_id == 10 or (b_id % 1000 == 999):
+            print('Saving modela after', b_id)
+            model.save('step-batch-' + str(b_id))
 
     if save_to_wandb:
         wandb.finish()
