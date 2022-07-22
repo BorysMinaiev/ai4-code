@@ -82,6 +82,9 @@ class State:
 
     def load_train_nbs(self, num: int):
         self.load_train_nbs_helper(self.all_train_nb.head(num))
+    
+    def load_train_nbs_range(self, from_: int, to_: int):
+        self.load_train_nbs_helper(self.all_train_nb[from_:to_])
 
     def load_train_nbs_tail(self, num: int):
         self.load_train_nbs_helper(self.all_train_nb.tail(num))

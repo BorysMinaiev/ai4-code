@@ -18,8 +18,8 @@ import torch
 
 md_max_len = 64
 code_max_len = 20
-cnt_texts = 20
-max_tokenizer_len = md_max_len + cnt_texts * (1 + code_max_len) + 3
+cnt_texts = 40
+max_tokenizer_len = 512 # md_max_len + cnt_texts * (1 + code_max_len) + 3
 
 
 @dataclass
@@ -55,6 +55,12 @@ class MyRobertaModel(nn.Module):
             pad_to_max_length=True
         )['input_ids'][0]
 
+    def will_fit(self, input_ids, code_inputs, truncate_at):
+        total_len = len(input_ids)
+        for code in code_inputs:
+            total_len += min(truncate_at, len(code)) + 1
+        return total_len <= max_tokenizer_len
+    
     def encode_sample(self, sample: LearnSample):
         input_ids = [self.tokenizer.cls_token_id] + \
             self.encode_one(sample.text, max_length=md_max_len) + \
@@ -72,10 +78,20 @@ class MyRobertaModel(nn.Module):
             if cnt_texts != 0:
                 filtered_code_texts.append(sample.code_texts[-1])
 
-        for text in filtered_code_texts:
-            input_ids.extend(self.encode_one(text, max_length=code_max_len))
+        code_encoded = list(map(lambda x: self.encode_one(x, max_length=code_max_len*2), filtered_code_texts))
+        left, right = 2, code_max_len * 2
+        while right - left > 1:
+            mid = (left + right) // 2
+            if self.will_fit(input_ids, code_encoded, mid):
+                left = mid
+            else:
+                right = mid
+        assert self.will_fit(input_ids, code_encoded, left)
+                
+        for code in code_encoded:
+            input_ids.extend(code[:left])
             input_ids.append(self.tokenizer.sep_token_id)
-
+            
         assert len(input_ids) <= max_tokenizer_len
 
         cur_len = len(input_ids)
