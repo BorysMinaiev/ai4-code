@@ -91,7 +91,7 @@ class MyGraphModel(nn.Module):
         for batch in batches:
             encoded = self.encode(state, batch)
             pred = self(encoded['input_ids'], encoded['attention_mask'])
-            result += [x[0] for x in pred]
+            result += [x[0].item() for x in pred]
         return result
 
     def save(self, suffix, optimizer=None):
