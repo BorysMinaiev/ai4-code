@@ -17,8 +17,8 @@ from state import State
 import torch
 
 md_max_len = 64
-cnt_codes_lvl1 = 40
-cnt_codes_lvl2 = 10
+cnt_codes_lvl1 = 30
+cnt_codes_lvl2 = 20
 max_tokenizer_len = 512  # md_max_len + cnt_texts * (1 + code_max_len) + 3
 
 
@@ -181,7 +181,9 @@ class MyRobertaModel(nn.Module):
             print('optimizer state dict:', optimizer.state_dict())
             torch.save(optimizer.state_dict(), output_path)
 
-
+def get_params():
+    return str(md_max_len)+':'+str(cnt_codes_lvl1)+':'+str(cnt_codes_lvl2)
+            
 def train(state, model, dataset, save_to_wandb=False):
     print('start training...')
     np.random.seed(123)
@@ -192,8 +194,7 @@ def train(state, model, dataset, save_to_wandb=False):
     model.train()
     print('training... num batches:', len(dataset))
     if save_to_wandb:
-        init_wandb(name='roberta-wc-training-' +
-                   str(md_max_len)+':'+str(cnt_codes_lvl1)+':'+str(cnt_codes_lvl2))
+        init_wandb(name='roberta-wc-training-' + get_params())
 
     criterion = torch.nn.L1Loss()
     for b_id, batch in enumerate(tqdm(dataset)):

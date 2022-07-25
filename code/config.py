@@ -16,7 +16,7 @@ def get_local_config():
 
 
 def get_jarvis_config():
-    return Config(data_dir=Path('/home/input/AI4Code'), unixcoder_model_path='/home/unixcoderbase', wandb_key='/home/wandb_key', batch_size=60)
+    return Config(data_dir=Path('/home/input/AI4Code'), unixcoder_model_path='/home/unixcoderbase', wandb_key='/home/wandb_key', batch_size=50)
 
 
 def get_default_config():

@@ -55,10 +55,11 @@ class MyGraphModel(nn.Module):
         return x
 
     def encode_sample(self, sample):
+        max_length = (max_tokenizer_len // 2 - 3)
         code_tokens = self.tokenizer.tokenize(
-            sample.code, max_length=max_tokenizer_len // 2, truncation=True)
+            sample.code, max_length=max_length, truncation=True)
         markdown_tokens = self.tokenizer.tokenize(
-            sample.markdown, max_length=max_tokenizer_len // 2, truncation=True)
+            sample.markdown, max_length=max_length, truncation=True)
         tokens = [self.tokenizer.cls_token] + markdown_tokens + \
             [self.tokenizer.sep_token] + code_tokens + [self.tokenizer.sep_token]
         token_ids = self.tokenizer.convert_tokens_to_ids(tokens)
@@ -105,11 +106,14 @@ class MyGraphModel(nn.Module):
             torch.save(optimizer.state_dict(), output_path)
 
 
-def train(state, model, dataset, save_to_wandb=False):
+def train(state, model, dataset, save_to_wandb=False, optimizer_state=None):
     print('start training...')
     np.random.seed(123)
     learning_rate = 5e-5
     optimizer = AdamW(model.parameters(), lr=learning_rate, eps=1e-8)
+    if optimizer_state is not None:
+        print('loading optimizer state...')
+        optimizer.load_state_dict(torch.load(optimizer_state))
     scheduler = get_linear_schedule_with_warmup(
         optimizer, num_warmup_steps=0, num_training_steps=len(dataset))
     model.train()
@@ -138,11 +142,9 @@ def train(state, model, dataset, save_to_wandb=False):
         if save_to_wandb:
             wandb.log({'graph_loss': loss.item()})
 
-        if b_id == 100 or (b_id % 1000 == 999):
+        if (b_id % 1000 == 999):
             print('Saving model after', b_id)
             model.save('step-batch-' + str(b_id), optimizer=optimizer)
-
-        break
 
     if save_to_wandb:
         wandb.finish()
