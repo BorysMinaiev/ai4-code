@@ -70,7 +70,7 @@ class MyGraphModel(nn.Module):
         attention_mask = []
 
         for sample in samples:
-            encoded = self.encode_sample(sample.sample)
+            encoded = self.encode_sample(sample)
             input_ids.append(encoded['input_ids'])
             attention_mask.append(encoded['attention_mask'])
 
@@ -123,7 +123,8 @@ def train(state, model, dataset, save_to_wandb=False, optimizer_state=None):
 
     criterion = torch.nn.BCELoss()
     for b_id, batch in enumerate(tqdm(dataset)):
-        encoded = model.encode(state, batch)
+        samples = list(map(lambda x: [x.sample], batch))
+        encoded = model.encode(state, samples)
         input_ids = encoded['input_ids']
         attention_mask = encoded['attention_mask']
         target = list(map(lambda x: [x.label], batch))
