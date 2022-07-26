@@ -115,7 +115,7 @@ def train(state, model, dataset, save_to_wandb=False, optimizer_state=None):
         print('loading optimizer state...')
         optimizer.load_state_dict(torch.load(optimizer_state))
     scheduler = get_linear_schedule_with_warmup(
-        optimizer, num_warmup_steps=0, num_training_steps=len(dataset))
+        optimizer, num_warmup_steps=0.05*len(dataset), num_training_steps=len(dataset))
     model.train()
     print('training... num batches:', len(dataset))
     if save_to_wandb:
@@ -123,7 +123,7 @@ def train(state, model, dataset, save_to_wandb=False, optimizer_state=None):
 
     criterion = torch.nn.BCELoss()
     for b_id, batch in enumerate(tqdm(dataset)):
-        samples = list(map(lambda x: [x.sample], batch))
+        samples = list(map(lambda x: x.sample, batch))
         encoded = model.encode(state, samples)
         input_ids = encoded['input_ids']
         attention_mask = encoded['attention_mask']
