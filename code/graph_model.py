@@ -168,6 +168,11 @@ def train(state, model, dataset, save_to_wandb=False, optimizer_state=None):
 
     model.save('cur-final', optimizer=optimizer)
 
+    
+    import torch
+from pytorch_memlab import MemReporter
+import random
+
 
 def train2(state, model, dataset, save_to_wandb=False, optimizer_state=None):
     print('start training...')
@@ -193,15 +198,13 @@ def train2(state, model, dataset, save_to_wandb=False, optimizer_state=None):
         attention_mask = encoded['attention_mask']
 
         optimizer.zero_grad()
+
         pred = model(input_ids, attention_mask, use_sigmoid=False)
 
         losses = []
         for i in range(len(batch)):
-            score_correct = pred[i * 2 + 0]
-            score_wrong = pred[i * 2 + 1]
-            cur_scores = torch.tensor(
-                [score_wrong, score_correct], requires_grad=True)
-            losses.append(F.softmax(cur_scores, dim=0)[0])
+            sm = F.softmax(pred[i*2:i*2+2] * 10.0, dim=0)
+            losses.append(sm[1])
 
         total_loss = sum(losses) / len(batch)
         total_loss.backward()
@@ -210,7 +213,7 @@ def train2(state, model, dataset, save_to_wandb=False, optimizer_state=None):
         optimizer.step()
         scheduler.step()
         if save_to_wandb:
-            wandb.log({'graph_loss': total_loss.item()})
+            wandb.log({'graph2_loss': total_loss.item()})
 
         if (b_id % 1000 == 999):
             print('Saving model after', b_id)
@@ -220,3 +223,6 @@ def train2(state, model, dataset, save_to_wandb=False, optimizer_state=None):
         wandb.finish()
 
     model.save('2-cur-final', optimizer=optimizer)
+    
+    # reporter = MemReporter(model)
+    # reporter.report()
