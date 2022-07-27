@@ -21,6 +21,8 @@ import torch
 from dataclasses import dataclass
 import itertools
 
+from torch.optim.lr_scheduler import CosineAnnealingLR
+
 
 @dataclass
 class Sample:
@@ -46,7 +48,7 @@ class TwoSamples:
         return max(l1, l2)
 
 
-max_tokenizer_len = 512
+max_tokenizer_len = 256
 
 
 class MyGraphModel(nn.Module):
@@ -57,6 +59,7 @@ class MyGraphModel(nn.Module):
         self.tokenizer = AutoTokenizer.from_pretrained(
             'microsoft/graphcodebert-base')
         self.top = nn.Linear(768, 1)
+        self.dropout = nn.Dropout(0.2)
         if preload_state is not None:
             print('Preloading state:', preload_state)
             self.load_state_dict(torch.load(
@@ -65,6 +68,7 @@ class MyGraphModel(nn.Module):
 
     def forward(self, input_ids, attention_mask, use_sigmoid=True):
         x = self.graph(input_ids=input_ids, attention_mask=attention_mask)[0]
+        x = self.dropout(x)
         x = self.top(x[:, 0, :])
         if use_sigmoid:
             x = torch.sigmoid(x)
@@ -130,8 +134,9 @@ def train(state, model, dataset, save_to_wandb=False, optimizer_state=None):
     if optimizer_state is not None:
         print('loading optimizer state...')
         optimizer.load_state_dict(torch.load(optimizer_state))
-    scheduler = get_linear_schedule_with_warmup(
-        optimizer, num_warmup_steps=0.05*len(dataset), num_training_steps=len(dataset))
+    scheduler = CosineAnnealingLR(optimizer, T_max=len(dataset))
+    #scheduler = get_linear_schedule_with_warmup(
+    #    optimizer, num_warmup_steps=0.05*len(dataset), num_training_steps=len(dataset))
     model.train()
     print('training... num batches:', len(dataset))
     if save_to_wandb:
@@ -167,22 +172,28 @@ def train(state, model, dataset, save_to_wandb=False, optimizer_state=None):
         wandb.finish()
 
     model.save('cur-final', optimizer=optimizer)
-
+    
 def train2(state, model, dataset, save_to_wandb=False, optimizer_state=None):
     print('start training...')
     np.random.seed(123)
     learning_rate = 5e-5
-    optimizer = AdamW(model.parameters(), lr=learning_rate, eps=1e-8)
+    optimizer = AdamW(model.parameters(), lr=learning_rate, eps=1e-6)
+    #optimizer = bnb.optim.Adam8bit(model.parameters(), lr=learning_rate, betas=(0.9, 0.995))
     if optimizer_state is not None:
         print('loading optimizer state...')
         optimizer.load_state_dict(torch.load(optimizer_state))
-    scheduler = get_linear_schedule_with_warmup(
-        optimizer, num_warmup_steps=0.05*len(dataset), num_training_steps=len(dataset))
+    # scheduler = get_linear_schedule_with_warmup(
+    #     optimizer, num_warmup_steps=0.05*len(dataset), num_training_steps=len(dataset))
     model.train()
     print('training... num batches:', len(dataset))
     if save_to_wandb:
         init_wandb(name='graph2-training')
-
+        
+    scaler = torch.cuda.amp.GradScaler()
+    accumulation_steps = 1
+    scheduler = CosineAnnealingLR(optimizer, T_max=len(dataset)/accumulation_steps)
+    
+    
     for b_id, batch in enumerate(tqdm(dataset)):
         samples = list(map(lambda x: [Sample(markdown=x.markdown, code=x.correct_code), Sample(
             markdown=x.markdown, code=x.wrong_code)], batch))
@@ -191,21 +202,24 @@ def train2(state, model, dataset, save_to_wandb=False, optimizer_state=None):
         input_ids = encoded['input_ids']
         attention_mask = encoded['attention_mask']
 
-        optimizer.zero_grad()
+        with torch.cuda.amp.autocast():
+            pred = model(input_ids, attention_mask, use_sigmoid=False)
 
-        pred = model(input_ids, attention_mask, use_sigmoid=False)
+            losses = []
+            for i in range(len(batch)):
+                sm = F.softmax(pred[i*2:i*2+2] * 10.0, dim=0)
+                losses.append(sm[1])
 
-        losses = []
-        for i in range(len(batch)):
-            sm = F.softmax(pred[i*2:i*2+2] * 10.0, dim=0)
-            losses.append(sm[1])
+            total_loss = sum(losses) / len(batch)
+        scaler.scale(total_loss).backward()
+        if b_id % accumulation_steps == 0:
+            scaler.step(optimizer)
+            scaler.update()
+            optimizer.zero_grad()
+            scheduler.step()
+        
+        # torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
 
-        total_loss = sum(losses) / len(batch)
-        total_loss.backward()
-        torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-
-        optimizer.step()
-        scheduler.step()
         if save_to_wandb:
             wandb.log({'graph2_loss': total_loss.item()})
 
