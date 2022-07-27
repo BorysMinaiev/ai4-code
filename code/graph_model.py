@@ -176,8 +176,8 @@ def train(state, model, dataset, save_to_wandb=False, optimizer_state=None):
 def train2(state, model, dataset, save_to_wandb=False, optimizer_state=None):
     print('start training...')
     np.random.seed(123)
-    learning_rate = 5e-5
-    optimizer = AdamW(model.parameters(), lr=learning_rate, eps=1e-6)
+    learning_rate = 3e-5
+    optimizer = AdamW(model.parameters(), lr=learning_rate, eps=1e-8)
     #optimizer = bnb.optim.Adam8bit(model.parameters(), lr=learning_rate, betas=(0.9, 0.995))
     if optimizer_state is not None:
         print('loading optimizer state...')
@@ -213,12 +213,13 @@ def train2(state, model, dataset, save_to_wandb=False, optimizer_state=None):
             total_loss = sum(losses) / len(batch)
         scaler.scale(total_loss).backward()
         if b_id % accumulation_steps == 0:
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
             scaler.step(optimizer)
             scaler.update()
             optimizer.zero_grad()
             scheduler.step()
         
-        # torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+        # 
 
         if save_to_wandb:
             wandb.log({'graph2_loss': total_loss.item()})
