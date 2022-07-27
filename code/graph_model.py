@@ -101,12 +101,12 @@ class MyGraphModel(nn.Module):
                 }
 
     @torch.no_grad()
-    def predict(self, state: State, samples):
+    def predict(self, state: State, samples, use_sigmoid):
         result = []
         batches = split_into_batches(samples, state.config.batch_size)
         for batch in batches:
             encoded = self.encode(state, batch)
-            pred = self(encoded['input_ids'], encoded['attention_mask'])
+            pred = self(encoded['input_ids'], encoded['attention_mask'], use_sigmoid)
             result += [x[0].item() for x in pred]
         return result
 
@@ -168,12 +168,6 @@ def train(state, model, dataset, save_to_wandb=False, optimizer_state=None):
 
     model.save('cur-final', optimizer=optimizer)
 
-    
-    import torch
-from pytorch_memlab import MemReporter
-import random
-
-
 def train2(state, model, dataset, save_to_wandb=False, optimizer_state=None):
     print('start training...')
     np.random.seed(123)
@@ -215,7 +209,7 @@ def train2(state, model, dataset, save_to_wandb=False, optimizer_state=None):
         if save_to_wandb:
             wandb.log({'graph2_loss': total_loss.item()})
 
-        if (b_id % 1000 == 999):
+        if (b_id % 5000 == 4999):
             print('Saving model after', b_id)
             model.save('2-step-batch-' + str(b_id), optimizer=optimizer)
 
@@ -223,6 +217,3 @@ def train2(state, model, dataset, save_to_wandb=False, optimizer_state=None):
         wandb.finish()
 
     model.save('2-cur-final', optimizer=optimizer)
-    
-    # reporter = MemReporter(model)
-    # reporter.report()
