@@ -12,7 +12,7 @@ from torch.optim.lr_scheduler import CosineAnnealingLR
 import wandb
 from wandb_helper import init_wandb
 
-default_mul = 1000
+default_mul = 10
 end_token = 'END'
 
 
@@ -68,8 +68,8 @@ def gen_batches(state: State):
     random.seed(787788)
 
     df = state.cur_train_nbs
-    nbs = df.index.get_level_values(0).unique()
-    print('Total nbs:', len(nbs))
+    all = df.index.get_level_values(0).unique()
+    print('Total nbs:', len(all))
 
     minibatches = []
     for nb_id in tqdm(all):
@@ -120,8 +120,8 @@ def gen_batches(state: State):
 
 def train_on_batch(state: State, batch, model, optimizer, scheduler):
     all_texts = batch.get_all_texts()
-    encoded = model.encode_texts(all_texts)
-    embeddings = model(encoded)
+    encoded = model.encode_texts(state, all_texts)
+    embeddings = model(input_ids=encoded['input_ids'], attention_mask=encoded['attention_mask'], use_sigmoid=False, return_scalar=False)
 
     markdown_vec = []
     code_vec = []
@@ -143,6 +143,14 @@ def train_on_batch(state: State, batch, model, optimizer, scheduler):
     expected_order = torch.tensor(expected_order).to(state.device)
 
     loss_fct = CrossEntropyLoss()
+    # print('scores:', scores)
+    # print('expected order:', expected_order)
+#     for i in range(len(expected_order)):
+#         print('expected:', expected_order[i])
+#         for val in scores[i]:
+#             print('%.3f ' % val, end='')
+#         print()
+    
     loss = loss_fct(scores, expected_order)
 
     loss.backward()
@@ -174,7 +182,6 @@ def run_train_all_new(state: State, model):
 
     for id, batch in enumerate(tqdm(batches)):
         cur_loss = train_on_batch(state, batch, model, optimizer, scheduler)
-
         wandb.log({'loss': cur_loss})
 
     wandb.finish()

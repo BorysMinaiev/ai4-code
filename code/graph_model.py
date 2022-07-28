@@ -66,10 +66,14 @@ class MyGraphModel(nn.Module):
                 preload_state, map_location=state.device))
         self.name = preload_state if preload_state is not None else "0"
 
-    def forward(self, input_ids, attention_mask, use_sigmoid=True):
+    def forward(self, input_ids, attention_mask, use_sigmoid, return_scalar):
         x = self.graph(input_ids=input_ids, attention_mask=attention_mask)[0]
+        x = x[:, 0, :]
         x = self.dropout(x)
-        x = self.top(x[:, 0, :])
+        if return_scalar:
+            x = self.top(x)
+        else:
+            x = torch.nn.functional.normalize(x, p=2, dim=1)
         if use_sigmoid:
             x = torch.sigmoid(x)
         return x
@@ -104,13 +108,13 @@ class MyGraphModel(nn.Module):
                 'attention_mask': torch.LongTensor(attention_mask).to(state.device)
                 }
 
-    def encode_texts(self, state: State, texts, max_length=512):
+    def encode_texts(self, state: State, texts, max_length=510):
         input_ids = []
         attention_mask = []
 
         for text in texts:
-            tokens = [self.tokenizer.cls_token] + self.tokenizer.tokenize(
-                text, max_length=max_length, truncation=True) + [self.tokenizer.sep_token]
+            tokens = [self.tokenizer.cls_token_id] + self.tokenizer.convert_tokens_to_ids(self.tokenizer.tokenize(
+                text, max_length=max_length, truncation=True)) + [self.tokenizer.sep_token_id]
             input_ids.append(tokens)
             attention_mask.append([1] * len(tokens))
 
