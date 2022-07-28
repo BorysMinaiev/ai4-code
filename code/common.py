@@ -72,3 +72,7 @@ def get_markdown_cells(nb):
 def split_into_batches(lst, batch_size):
     num_chunks = (len(lst) + batch_size - 1) // batch_size
     return list(np.array_split(lst, num_chunks))
+
+
+def sim(emb1, emb2):
+    return torch.einsum("i,i->", emb1, emb2).detach().numpy()
