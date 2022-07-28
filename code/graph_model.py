@@ -104,13 +104,34 @@ class MyGraphModel(nn.Module):
                 'attention_mask': torch.LongTensor(attention_mask).to(state.device)
                 }
 
+    def encode_texts(self, state: State, texts, max_length=512):
+        input_ids = []
+        attention_mask = []
+
+        for text in texts:
+            tokens = [self.tokenizer.cls_token] + self.tokenizer.tokenize(
+                text, max_length=max_length, truncation=True) + [self.tokenizer.sep_token]
+            input_ids.append(tokens)
+            attention_mask.append([1] * len(tokens))
+
+        max_len = max(map(lambda x: len(x), input_ids))
+        for i in range(len(input_ids)):
+            more = max_len - len(input_ids[i])
+            input_ids[i] += [self.tokenizer.pad_token_id] * more
+            attention_mask[i] += [0] * more
+
+        return {'input_ids': torch.LongTensor(input_ids).to(state.device),
+                'attention_mask': torch.LongTensor(attention_mask).to(state.device)
+                }
+
     @torch.no_grad()
     def predict(self, state: State, samples, use_sigmoid):
         result = []
         batches = split_into_batches(samples, state.config.batch_size)
         for batch in batches:
             encoded = self.encode(state, batch)
-            pred = self(encoded['input_ids'], encoded['attention_mask'], use_sigmoid)
+            pred = self(encoded['input_ids'],
+                        encoded['attention_mask'], use_sigmoid)
             result += [x[0].item() for x in pred]
         return result
 
@@ -135,7 +156,7 @@ def train(state, model, dataset, save_to_wandb=False, optimizer_state=None):
         print('loading optimizer state...')
         optimizer.load_state_dict(torch.load(optimizer_state))
     scheduler = CosineAnnealingLR(optimizer, T_max=len(dataset))
-    #scheduler = get_linear_schedule_with_warmup(
+    # scheduler = get_linear_schedule_with_warmup(
     #    optimizer, num_warmup_steps=0.05*len(dataset), num_training_steps=len(dataset))
     model.train()
     print('training... num batches:', len(dataset))
@@ -172,7 +193,8 @@ def train(state, model, dataset, save_to_wandb=False, optimizer_state=None):
         wandb.finish()
 
     model.save('cur-final', optimizer=optimizer)
-    
+
+
 def train2(state, model, dataset, save_to_wandb=False, optimizer_state=None):
     print('start training...')
     np.random.seed(123)
@@ -188,12 +210,12 @@ def train2(state, model, dataset, save_to_wandb=False, optimizer_state=None):
     print('training... num batches:', len(dataset))
     if save_to_wandb:
         init_wandb(name='graph2-training')
-        
+
     scaler = torch.cuda.amp.GradScaler()
     accumulation_steps = 1
-    scheduler = CosineAnnealingLR(optimizer, T_max=len(dataset)/accumulation_steps)
-    
-    
+    scheduler = CosineAnnealingLR(
+        optimizer, T_max=len(dataset)/accumulation_steps)
+
     for b_id, batch in enumerate(tqdm(dataset)):
         samples = list(map(lambda x: [Sample(markdown=x.markdown, code=x.correct_code), Sample(
             markdown=x.markdown, code=x.wrong_code)], batch))
@@ -218,8 +240,8 @@ def train2(state, model, dataset, save_to_wandb=False, optimizer_state=None):
             scaler.update()
             optimizer.zero_grad()
             scheduler.step()
-        
-        # 
+
+        #
 
         if save_to_wandb:
             wandb.log({'graph2_loss': total_loss.item()})
