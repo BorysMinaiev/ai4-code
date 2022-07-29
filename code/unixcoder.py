@@ -8,7 +8,8 @@ from state import State
 import torch
 import torch.nn as nn
 from transformers import RobertaTokenizer, RobertaModel, RobertaConfig
-
+import os
+from pathlib import Path
 
 class UniXcoder(nn.Module):
     def __init__(self, model_name, state_dict=None):
@@ -341,7 +342,15 @@ class EnsembleModel(nn.Module):
         self.top = nn.Linear(768 + 6, 2)
         self.softmax = nn.Softmax(dim=1)
 
-    def forward(self, inputs, additional_features):
+    def forward(self, inputs, additional_features, device):
         outputs = self.encoder(inputs)[1]
-        per_model = self.top(torch.cat((outputs, additional_features), 1))
+        joined = torch.cat((outputs, additional_features), 1).to(device)
+        per_model = self.top(joined)
         return self.softmax(per_model)
+
+    def save(self, suffix):
+        output_dir = Path(".")
+        output_path = os.path.join(
+            output_dir, 'ensemble-model-{}.bin'.format(suffix))
+        torch.save(self.state_dict(), output_path)
+        print("Saved model to {}".format(output_path))
