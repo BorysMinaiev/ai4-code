@@ -1,13 +1,14 @@
+import math
+from common import sim
+from cosine_train import end_token
 import torch.nn.functional as F
 import os
 from pathlib import Path
-from urllib.parse import uses_relative
 import torch
 import torch.nn as nn
 import numpy as np
 from transformers import AutoModel, AutoTokenizer
 from torch.optim import AdamW
-from transformers import get_linear_schedule_with_warmup
 import wandb
 from wandb_helper import init_wandb
 from tqdm import tqdm
@@ -258,3 +259,30 @@ def train2(state, model, dataset, save_to_wandb=False, optimizer_state=None):
         wandb.finish()
 
     model.save('2-cur-final', optimizer=optimizer)
+
+
+@dataclass
+class Embedding:
+    cell_id: str
+    text: str
+
+
+def get_nb_embeddings(state: State, model, nb):
+    to_convert = [Embedding(cell_id=end_token, text=end_token)]
+    for cell_id in nb.index:
+        to_convert.append(
+            Embedding(cell_id=cell_id, text=nb.loc[cell_id]['source']))
+    to_convert.sort(key=lambda x: len(x.text))
+
+    num_chunks = (len(to_convert) + state.config.batch_size -
+                  1) // state.config.batch_size
+
+    result = {}
+    for batch in np.array_split(to_convert, num_chunks):
+        all_texts = list(map(lambda x: x.text, batch))
+        encoded = model.encode_texts(state, all_texts)
+        embeddings = model(
+            input_ids=encoded['input_ids'], attention_mask=encoded['attention_mask'], use_sigmoid=False, return_scalar=False)
+        for i in range(len(batch)):
+            result[batch[i].cell_id] = embeddings[i].cpu()
+    return result

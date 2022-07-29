@@ -3,6 +3,8 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import numpy as np
+from state import State
 import torch
 import torch.nn as nn
 from transformers import RobertaTokenizer, RobertaModel, RobertaConfig
@@ -285,3 +287,48 @@ class Model(nn.Module):
     def forward(self, inputs):
         outputs = self.encoder(inputs)[1]
         return torch.nn.functional.normalize(outputs, p=2, dim=1)
+
+
+def reload_model(state: State, state_dict):
+    unixcoder_model = UniXcoder(
+        model_name=state.config.unixcoder_model_path, state_dict=state_dict)
+    unixcoder_model.to(state.device)
+    return unixcoder_model
+
+
+def get_text_tokens(state: State, model, text):
+    tokens = model.tokenize(
+        [text], max_length=512, mode="<encoder-only>")
+    return torch.tensor(tokens).to(state.device)
+
+
+def get_text_embedding(state: State, model, text):
+    source_ids = get_text_tokens(state, model, text)
+    _, embeddings = model(source_ids)
+    return torch.nn.functional.normalize(embeddings, p=2, dim=1).cpu()[0]
+
+
+@torch.no_grad()
+def get_nb_embeddings(state: State, model, nb):
+    res = {}
+
+    batch_size = state.config.batch_size
+    n_chunks = len(nb) / min(len(nb), batch_size)
+
+    nb = nb.sort_values(by="source", key=lambda x: x.str.len())
+    for nb in np.array_split(nb, n_chunks):
+        texts = nb['source'].to_numpy()
+
+        tokens = model.tokenize(texts, max_length=512,
+                                mode="<encoder-only>", padding=True)
+        source_ids = torch.tensor(tokens).to(state.device)
+        _, embeddings = model(source_ids)
+        normalized = torch.nn.functional.normalize(
+            embeddings, p=2, dim=1).cpu()
+
+        for key, val in zip(nb['source'].index, normalized):
+            res[key] = val
+
+    res['END'] = get_text_embedding(state, model, 'END')
+
+    return res
