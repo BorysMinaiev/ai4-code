@@ -332,3 +332,16 @@ def get_nb_embeddings(state: State, model, nb):
     res['END'] = get_text_embedding(state, model, 'END')
 
     return res
+
+
+class EnsembleModel(nn.Module):
+    def __init__(self, encoder):
+        super(EnsembleModel, self).__init__()
+        self.encoder = encoder
+        self.top = nn.Linear(768 + 6, 2)
+        self.softmax = nn.Softmax(dim=1)
+
+    def forward(self, inputs, additional_features):
+        outputs = self.encoder(inputs)[1]
+        per_model = self.top(torch.cat((outputs, additional_features), 1))
+        return self.softmax(per_model)

@@ -5,22 +5,8 @@ import os
 import pandas as pd  # data processing, CSV file I/O (e.g. pd.read_csv)
 import numpy as np  # linear algebra
 import torch
+import math
 from config import Config
-
-
-def reload_model(config: Config, preload=None):
-    global unixcoder_model
-    global device
-    default_model_name = config.unixcoder_model_path
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    state_dict = None
-    if preload is not None:
-        print("Preloading from input...")
-        state_dict = "/home/ai4-code/code/" + preload
-    unixcoder_model = UniXcoder(
-        model_name=default_model_name, state_dict=state_dict)
-    unixcoder_model.to(device)
-
 
 pd.options.display.width = 180
 pd.options.display.max_colwidth = 120
@@ -38,10 +24,6 @@ def read_notebook(path):
         .assign(id=path.stem)
         .rename_axis('cell_id')
     )
-
-
-def get_tokens(text):
-    return unixcoder_model.tokenize([text], max_length=512, mode="<encoder-only>")
 
 
 def save_model(model, suffix):
@@ -75,3 +57,21 @@ def split_into_batches(lst, batch_size):
 
 def sim(emb1, emb2):
     return torch.einsum("i,i->", emb1, emb2).detach().numpy()
+
+
+def get_probs_by_embeddings(embeddings, m_cell_id, code_cell_ids, coef_mul):
+    markdown_emb = embeddings[m_cell_id]
+    sims = [sim(markdown_emb, embeddings[c]) for c in code_cell_ids]
+    max_sim = max(sims)
+    sims_probs = list(map(lambda x: math.exp((x-max_sim) * coef_mul), sims))
+    sum_probs = sum(sims_probs)
+    sims_probs = list(map(lambda x: x/sum_probs, sims_probs))
+    return sims_probs
+
+
+def get_best_pos_by_probs(probs):
+    scores = [0.0] * len(probs)
+    for i in range(len(probs)):
+        for j in range(len(probs)):
+            scores[j] += abs(i - j) * probs[i]
+    return scores.index(min(scores))
