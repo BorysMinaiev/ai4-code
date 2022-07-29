@@ -12,7 +12,7 @@ from torch.optim.lr_scheduler import CosineAnnealingLR
 import wandb
 from wandb_helper import init_wandb
 
-default_mul = 10
+default_mul = 25
 end_token = 'END'
 
 
@@ -183,6 +183,11 @@ def run_train_all_new(state: State, model):
     for id, batch in enumerate(tqdm(batches)):
         cur_loss = train_on_batch(state, batch, model, optimizer, scheduler)
         wandb.log({'loss': cur_loss})
+        
+        if (id % 10000 == 9999):
+            print('Saving model after', id)
+            model.save('3graph-batch-' + str(id), optimizer=optimizer)
 
     wandb.finish()
+    model.save('graph3-cur-final', optimizer=optimizer)
     # TODO: save model/optimizer/scheduler
