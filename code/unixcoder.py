@@ -11,6 +11,7 @@ from transformers import RobertaTokenizer, RobertaModel, RobertaConfig
 import os
 from pathlib import Path
 
+
 class UniXcoder(nn.Module):
     def __init__(self, model_name, state_dict=None):
         """
@@ -336,11 +337,14 @@ def get_nb_embeddings(state: State, model, nb):
 
 
 class EnsembleModel(nn.Module):
-    def __init__(self, encoder):
+    def __init__(self, state, state_dict=None):
         super(EnsembleModel, self).__init__()
-        self.encoder = encoder
+        self.encoder = reload_model(state, state_dict=None)
         self.top = nn.Linear(768 + 6, 2)
         self.softmax = nn.Softmax(dim=1)
+        if state_dict is not None:
+            self.load_state_dict(torch.load(
+                state_dict, map_location=state.device))
 
     def forward(self, inputs, additional_features, device):
         outputs = self.encoder(inputs)[1]
