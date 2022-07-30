@@ -345,6 +345,7 @@ class EnsembleModel(nn.Module):
         if state_dict is not None:
             self.load_state_dict(torch.load(
                 state_dict, map_location=state.device))
+        self.to(state.device)
 
     def forward(self, inputs, additional_features, device):
         outputs = self.encoder(inputs)[1]
