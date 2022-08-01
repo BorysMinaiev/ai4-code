@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import time
 from pathlib import Path
 from tqdm import tqdm
@@ -75,3 +76,10 @@ def get_best_pos_by_probs(probs):
         for j in range(len(probs)):
             scores[j] += abs(i - j) * probs[i]
     return scores.index(min(scores))
+
+
+@dataclass
+class OneCell:
+    score: float
+    cell_id: str
+    cell_type: str
