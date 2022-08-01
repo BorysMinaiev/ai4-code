@@ -12,6 +12,7 @@ class Config:
     batch_size_graph2: int
     cosine_minibatch_size: int
     cosine_batch_size: int
+    use_simple_ensemble_model = True
 
 
 def get_local_config():

@@ -69,11 +69,14 @@ def predict(state: State, ensemble_model, samples):
         [s.graph3_pos, s.unix_pos]), samples))
     to_mul = torch.stack(to_mul).to(state.device)
 
-    text_tokens = ensemble_model.encoder.tokenize(
-        texts, max_length=512, mode="<encoder-only>", padding=True)
-    text_tokens = torch.tensor(text_tokens).to(state.device)
-
-    coefs = ensemble_model(text_tokens, additional_features, state.device)
+    coefs = None
+    if state.config.use_simple_ensemble_model:
+        coefs = ensemble_model(additional_features)
+    else:
+        text_tokens = ensemble_model.encoder.tokenize(
+            texts, max_length=512, mode="<encoder-only>", padding=True)
+        text_tokens = torch.tensor(text_tokens).to(state.device)
+        coefs = ensemble_model(text_tokens, additional_features, state.device)
     preds = torch.einsum("ab,ab->a", coefs, to_mul)
 
     return {'coefs': coefs, 'preds': preds}
