@@ -44,10 +44,31 @@ def gen_nb_samples(nb, graph3_embeddings, unix_embeddings, correct_order):
         graph3_pos = get_best_pos_by_probs(graph_sims_probs)
         unix_pos = get_best_pos_by_probs(unix_sims_probs)
 
-        target_pos = 0 if correct_order is None else correct_order.index(
-            m_cell_id) / total_cells * code_cells
+        best_coef = 0
+
+        if correct_order is not None:
+            idx = correct_order.index(m_cell_id)
+            next_code_cell = 'END'
+            for i in range(idx+1, len(correct_order)):
+                if correct_order[i] in code_cell_ids:
+                    next_code_cell = correct_order[i]
+                    break
+            target_score = code_cell_ids.index(next_code_cell)
+            OPTIONS = 20
+            best_diff = 123.45
+            best_coef = 0.0
+            for o in range(OPTIONS+1):
+                coef = o/(OPTIONS)
+                sim_probs = graph_sims_probs * \
+                    coef + unix_sims_probs * (1 - coef)
+                pos = get_best_pos_by_probs(sim_probs)
+                diff = abs(pos - target_score)
+                if diff < best_diff:
+                    best_diff = diff
+                    best_coef = coef
+
         samples.append(Sample(md_cell_id=m_cell_id, text=text, graph3_pos=graph3_pos, unix_pos=unix_pos, total_cells=total_cells,
-                       md_cells=md_cells, code_cells=code_cells, part_code_cells=part_code_cells, target_pos=target_pos))
+                       md_cells=md_cells, code_cells=code_cells, part_code_cells=part_code_cells, target_pos=best_coef))
 
     return samples
 
