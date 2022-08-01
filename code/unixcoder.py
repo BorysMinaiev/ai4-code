@@ -342,7 +342,9 @@ class EnsembleModel(nn.Module):
         self.encoder = reload_model(state, state_dict=None)
         self.top = nn.Linear(768 + 6, 2)
         self.softmax = nn.Softmax(dim=1)
+        self.name = ""
         if state_dict is not None:
+            self.name = state_dict
             self.load_state_dict(torch.load(
                 state_dict, map_location=state.device))
         self.to(state.device)
