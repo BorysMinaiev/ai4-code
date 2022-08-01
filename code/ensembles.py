@@ -56,17 +56,30 @@ def gen_nb_samples(nb, graph3_embeddings, unix_embeddings, correct_order):
             target_score = code_cell_ids.index(next_code_cell)
             OPTIONS = 20
             best_diff = 123.45
-            best_coef = 0.0
+            sum_best_coefs = 0.0
+            cnt_best_coefs = 0.0
+            all_possible_positions = []
             for o in range(OPTIONS+1):
                 coef = o/(OPTIONS)
-                sim_probs = graph_sims_probs * \
-                    coef + unix_sims_probs * (1 - coef)
+                sim_probs = [graph_sims_probs[i] * coef + unix_sims_probs[i] * (1 - coef) for i in range(len(graph_sims_probs))]
+                                
                 pos = get_best_pos_by_probs(sim_probs)
+                all_possible_positions.append(pos)
                 diff = abs(pos - target_score)
                 if diff < best_diff:
                     best_diff = diff
-                    best_coef = coef
-
+                    sum_best_coefs = 0.0
+                    cnt_best_coefs = 0.0
+                if diff == best_diff:
+                    sum_best_coefs += coef
+                    cnt_best_coefs += 1.0
+            # all_possible_positions.sort()
+            if all_possible_positions[0] == all_possible_positions[-1]:
+                continue
+            # print('target score:', target_score)
+            # print(all_possible_positions)
+            best_coef = sum_best_coefs / cnt_best_coefs
+            # print('best coef:', best_coef)
         samples.append(Sample(md_cell_id=m_cell_id, text=text, graph3_pos=graph3_pos, unix_pos=unix_pos, total_cells=total_cells,
                        md_cells=md_cells, code_cells=code_cells, part_code_cells=part_code_cells, target_pos=best_coef))
 
@@ -93,6 +106,8 @@ def predict(state: State, ensemble_model, samples):
     coefs = None
     if state.config.use_simple_ensemble_model:
         coefs = ensemble_model(additional_features)
+        #coefs = [torch.FloatTensor([0.4, 0.6]) for _ in range(len(samples))]
+        #coefs = torch.stack(coefs).to(state.device)
     else:
         text_tokens = ensemble_model.encoder.tokenize(
             texts, max_length=512, mode="<encoder-only>", padding=True)
