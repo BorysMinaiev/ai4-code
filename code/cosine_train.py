@@ -64,7 +64,7 @@ class Sample:
     code: str
 
 
-def gen_batches(state: State):
+def gen_batches(state: State, next_code_cells_cnt, sep_token):
     random.seed(787788)
 
     df = state.cur_train_nbs
@@ -83,17 +83,24 @@ def gen_batches(state: State):
                 return end_token
             return nb.loc[cell_id]['source']
 
+        def get_codes(cell_ids):
+            res = get_code(cell_ids[0])
+            for cell in cell_ids[1:]:
+                res += sep_token + get_code(cell)
+            return res
+
         samples = []
         for pos, cell_id in enumerate(correct_order):
             if cell_id in markdown_cell_ids:
-                next_code_cell = None
+                next_code_cells = []
                 for next_cell in correct_order[pos:]:
                     if next_cell not in markdown_cell_ids:
-                        next_code_cell = next_cell
-                        break
-                assert next_code_cell != None
+                        next_code_cells.append(next_cell)
+                        if len(next_code_cells) == next_code_cells_cnt:
+                            break
+                assert len(next_code_cells) != 0
                 samples.append(
-                    Sample(markdown=nb.loc[cell_id]['source'], code=get_code(next_code_cell)))
+                    Sample(markdown=nb.loc[cell_id]['source'], code=get_codes(next_code_cells)))
         random.shuffle(samples)
         num_chunks = (len(samples) + state.config.cosine_minibatch_size -
                       1) // state.config.cosine_minibatch_size
@@ -121,7 +128,8 @@ def gen_batches(state: State):
 def train_on_batch(state: State, batch, model, optimizer, scheduler):
     all_texts = batch.get_all_texts()
     encoded = model.encode_texts(state, all_texts)
-    embeddings = model(input_ids=encoded['input_ids'], attention_mask=encoded['attention_mask'], use_sigmoid=False, return_scalar=False)
+    embeddings = model(
+        input_ids=encoded['input_ids'], attention_mask=encoded['attention_mask'], use_sigmoid=False, return_scalar=False)
 
     markdown_vec = []
     code_vec = []
@@ -150,7 +158,7 @@ def train_on_batch(state: State, batch, model, optimizer, scheduler):
 #         for val in scores[i]:
 #             print('%.3f ' % val, end='')
 #         print()
-    
+
     loss = loss_fct(scores, expected_order)
 
     loss.backward()
@@ -166,7 +174,8 @@ def train_on_batch(state: State, batch, model, optimizer, scheduler):
 def run_train_all_new(state: State, model):
     print('Start training')
     print('Start generating batches...')
-    batches = gen_batches(state)
+    batches = gen_batches(
+        state, next_code_cells_cnt=model.next_code_cells, sep_token=model.tokenizer.sep_token)
     print('Generated batches:', len(batches))
 
     model.zero_grad()
@@ -178,12 +187,12 @@ def run_train_all_new(state: State, model):
     optimizer = AdamW(model.parameters(), lr=learning_rate, eps=1e-8)
     scheduler = CosineAnnealingLR(optimizer, T_max=steps)
 
-    init_wandb(name="train-cosine")
+    init_wandb(name="train-cosine-next-c-s=" + str(model.next_code_cells))
 
     for id, batch in enumerate(tqdm(batches)):
         cur_loss = train_on_batch(state, batch, model, optimizer, scheduler)
         wandb.log({'loss': cur_loss})
-        
+
         if (id % 10000 == 9999):
             print('Saving model after', id)
             model.save('3graph-batch-' + str(id), optimizer=optimizer)
