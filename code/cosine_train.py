@@ -12,7 +12,6 @@ from torch.optim.lr_scheduler import CosineAnnealingLR
 import wandb
 from wandb_helper import init_wandb
 
-default_mul = 25
 end_token = 'END'
 
 
@@ -146,7 +145,7 @@ def train_on_batch(state: State, batch, model, optimizer, scheduler):
         code_shift += len(mini.code)
 
     scores = torch.einsum("ab,cb->ac", torch.stack(markdown_vec),
-                          torch.stack(code_vec)) * default_mul
+                          torch.stack(code_vec)) * model.coef_mul
 
     expected_order = torch.tensor(expected_order).to(state.device)
 
@@ -200,3 +199,45 @@ def run_train_all_new(state: State, model):
     wandb.finish()
     model.save('graph3-cur-final', optimizer=optimizer)
     # TODO: save model/optimizer/scheduler
+
+
+@dataclass
+class Embedding:
+    cell_id: str
+    text: str
+
+
+def get_nb_embeddings(state: State, model, nb):
+    def get_code(cell_id):
+        if cell_id == end_token:
+            return end_token
+        return nb.loc[cell_id]['source']
+
+    code_cells = get_code_cells(nb).tolist()
+    code_cells.append(end_token)
+
+    to_convert = [Embedding(cell_id=end_token, text=end_token)]
+
+    for cell_id in nb.index:
+        text=get_code(cell_id)
+        if cell_id in code_cells:
+            idx = code_cells.index(cell_id)
+            more_code_cells = code_cells[idx+1:idx+model.next_code_cells]
+            for next_id in more_code_cells:
+                text += model.tokenizer.sep_token + get_code(next_id)
+        to_convert.append(
+            Embedding(cell_id=cell_id, text=text))
+    to_convert.sort(key=lambda x: len(x.text))
+
+    num_chunks = (len(to_convert) + state.config.batch_size -
+                  1) // state.config.batch_size
+
+    result = {}
+    for batch in np.array_split(to_convert, num_chunks):
+        all_texts = list(map(lambda x: x.text, batch))
+        encoded = model.encode_texts(state, all_texts)
+        embeddings = model(
+            input_ids=encoded['input_ids'], attention_mask=encoded['attention_mask'], use_sigmoid=False, return_scalar=False)
+        for i in range(len(batch)):
+            result[batch[i].cell_id] = embeddings[i].cpu()
+    return result

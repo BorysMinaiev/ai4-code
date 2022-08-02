@@ -53,7 +53,7 @@ max_tokenizer_len = 256
 
 
 class MyGraphModel(nn.Module):
-    def __init__(self, state: State, preload_state=None, next_code_cells=1):
+    def __init__(self, state: State, preload_state=None, next_code_cells=1, coef_mul=25):
         super(MyGraphModel, self).__init__()
         self.graph = AutoModel.from_pretrained(
             'microsoft/graphcodebert-base')
@@ -62,6 +62,7 @@ class MyGraphModel(nn.Module):
         self.top = nn.Linear(768, 1)
         self.dropout = nn.Dropout(0.2)
         self.next_code_cells = next_code_cells
+        self.coef_mul = coef_mul
         if preload_state is not None:
             print('Preloading state:', preload_state)
             self.load_state_dict(torch.load(
