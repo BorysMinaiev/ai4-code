@@ -124,7 +124,7 @@ def gen_batches(state: State, next_code_cells_cnt, sep_token):
     return batches
 
 
-def train_on_batch(state: State, batch, model, optimizer, scheduler):
+def train_on_batch(state: State, batch, model):
     all_texts = batch.get_all_texts()
     encoded = model.encode_texts(state, all_texts)
     embeddings = model(
@@ -150,23 +150,8 @@ def train_on_batch(state: State, batch, model, optimizer, scheduler):
     expected_order = torch.tensor(expected_order).to(state.device)
 
     loss_fct = CrossEntropyLoss()
-    # print('scores:', scores)
-    # print('expected order:', expected_order)
-#     for i in range(len(expected_order)):
-#         print('expected:', expected_order[i])
-#         for val in scores[i]:
-#             print('%.3f ' % val, end='')
-#         print()
-
     loss = loss_fct(scores, expected_order)
-
     loss.backward()
-    torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-
-    optimizer.step()
-    optimizer.zero_grad()
-    scheduler.step()
-
     return loss.item()
 
 
@@ -181,16 +166,42 @@ def run_train_all_new(state: State, model):
     model.train()
 
     learning_rate = 3e-5
-    steps = len(batches)
+    grad_batch_sz = 1
+    steps = len(batches) // grad_batch_sz
 
-    optimizer = AdamW(model.parameters(), lr=learning_rate, eps=1e-8)
+    param_optimizer = list(model.named_parameters())
+    no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight']
+    optimizer_grouped_parameters = [
+        {'params': [p for n, p in param_optimizer if not any(nd in n for nd in no_decay)], 'weight_decay': 0.01},
+        {'params': [p for n, p in param_optimizer if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}
+    ]
+    optimizer = AdamW(optimizer_grouped_parameters, lr=learning_rate, eps=1e-8)
     scheduler = CosineAnnealingLR(optimizer, T_max=steps)
 
     init_wandb(name="train-cosine-next-c-s=" + str(model.next_code_cells))
 
+    last_loss = 0.0
+    
+    sum_batch_losses = 0.0
+    cnt_batch_losses = 0
+    
     for id, batch in enumerate(tqdm(batches)):
-        cur_loss = train_on_batch(state, batch, model, optimizer, scheduler)
-        wandb.log({'loss': cur_loss})
+        cur_loss = train_on_batch(state, batch, model)
+        
+        sum_batch_losses += cur_loss
+        cnt_batch_losses += 1
+        if cnt_batch_losses == grad_batch_sz:
+            last_loss = sum_batch_losses / cnt_batch_losses
+            sum_batch_losses = 0.0
+            cnt_batch_losses = 0
+            
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            optimizer.step()
+            optimizer.zero_grad()
+            scheduler.step()
+        
+        if id > 10:
+            wandb.log({'loss': last_loss})
 
         if (id % 10000 == 9999):
             print('Saving model after', id)
