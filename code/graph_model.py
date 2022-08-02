@@ -14,7 +14,7 @@ from wandb_helper import init_wandb
 from tqdm import tqdm
 from dataclasses import dataclass
 
-from common import split_into_batches
+from common import split_into_batches, get_code_cells
 from state import State
 
 import torch
@@ -65,15 +65,17 @@ class MyGraphModel(nn.Module):
         self.coef_mul = coef_mul
         if preload_state is not None:
             print('Preloading state:', preload_state)
-            state = torch.load(preload_state, map_location=state.device)
-            if 'state_dict' in state:
-                self.load_state_dict(state['state_dict'])
-                self.next_code_cells = state['next_code_cells']
-                self.coef_mul = state['coef_mul']
+            #state = torch.load(preload_state, map_location=state.device)
+            cur_state = torch.load(preload_state)
+            if 'state_dict' in cur_state:
+                self.load_state_dict(cur_state['state_dict'])
+                self.next_code_cells = cur_state['next_code_cells']
+                self.coef_mul = cur_state['coef_mul']
             else:
-                self.load_state_dict(state)
+                self.load_state_dict(cur_state)
         self.name = preload_state if preload_state is not None else "0"
-        self.name += ";ncs=" + str(next_code_cells)
+        self.name += ";ncs=" + str(self.next_code_cells)
+        self.to(state.device)
 
     def forward(self, input_ids, attention_mask, use_sigmoid, return_scalar):
         x = self.graph(input_ids=input_ids, attention_mask=attention_mask)[0]
@@ -274,12 +276,27 @@ class Embedding:
     cell_id: str
     text: str
 
-
+@torch.no_grad()
 def get_nb_embeddings(state: State, model, nb):
+    def get_code(cell_id):
+        if cell_id == end_token:
+            return end_token
+        return nb.loc[cell_id]['source']
+
+    code_cells = get_code_cells(nb).tolist()
+    code_cells.append(end_token)
+
     to_convert = [Embedding(cell_id=end_token, text=end_token)]
+
     for cell_id in nb.index:
+        text=get_code(cell_id)
+        if cell_id in code_cells:
+            idx = code_cells.index(cell_id)
+            more_code_cells = code_cells[idx+1:idx+model.next_code_cells]
+            for next_id in more_code_cells:
+                text += model.tokenizer.sep_token + get_code(next_id)
         to_convert.append(
-            Embedding(cell_id=cell_id, text=nb.loc[cell_id]['source']))
+            Embedding(cell_id=cell_id, text=text))
     to_convert.sort(key=lambda x: len(x.text))
 
     num_chunks = (len(to_convert) + state.config.batch_size -
