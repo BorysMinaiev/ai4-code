@@ -65,8 +65,13 @@ class MyGraphModel(nn.Module):
         self.coef_mul = coef_mul
         if preload_state is not None:
             print('Preloading state:', preload_state)
-            self.load_state_dict(torch.load(
-                preload_state, map_location=state.device))
+            state = torch.load(preload_state, map_location=state.device)
+            if 'state_dict' in state:
+                self.load_state_dict(state['state_dict'])
+                self.next_code_cells = state['next_code_cells']
+                self.coef_mul = state['coef_mul']
+            else:
+                self.load_state_dict(state)
         self.name = preload_state if preload_state is not None else "0"
         self.name += ";ncs=" + str(next_code_cells)
 
@@ -147,7 +152,7 @@ class MyGraphModel(nn.Module):
         output_dir = Path(".")
         output_path = os.path.join(
             output_dir, 'graph-model-{}.bin'.format(suffix))
-        torch.save(self.state_dict(), output_path)
+        torch.save({'state_dict':self.state_dict(), 'next_code_cells':self.next_code_cells, 'coef_mul':self.coef_mul}, output_path)
         print("Saved model to {}".format(output_path))
         if optimizer is not None:
             output_path = os.path.join(
