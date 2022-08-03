@@ -89,5 +89,3 @@ class State:
     def load_train_nbs_tail(self, num: int):
         self.load_train_nbs_helper(self.all_train_nb.tail(num))
 
-    def hello(self):
-        print('hello')
