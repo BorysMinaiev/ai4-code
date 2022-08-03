@@ -63,8 +63,8 @@ class Sample:
     code: str
 
 
-def gen_batches(state: State, next_code_cells_cnt, sep_token):
-    random.seed(787788)
+def gen_batches(state: State, next_code_cells_cnt, sep_token, rand_seed):
+    random.seed(rand_seed)
 
     df = state.cur_train_nbs
     all = df.index.get_level_values(0).unique()
@@ -155,11 +155,11 @@ def train_on_batch(state: State, batch, model):
     return loss.item()
 
 
-def run_train_all_new(state: State, model):
+def run_train_all_new(state: State, model, rand_seed=787788, optimizer_state=None):
     print('Start training')
     print('Start generating batches...')
     batches = gen_batches(
-        state, next_code_cells_cnt=model.next_code_cells, sep_token=model.tokenizer.sep_token)
+        state, next_code_cells_cnt=model.next_code_cells, sep_token=model.tokenizer.sep_token, rand_seed=rand_seed)
     print('Generated batches:', len(batches))
 
     model.zero_grad()
@@ -176,6 +176,9 @@ def run_train_all_new(state: State, model):
         {'params': [p for n, p in param_optimizer if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}
     ]
     optimizer = AdamW(optimizer_grouped_parameters, lr=learning_rate, eps=1e-8)
+    if optimizer_state is not None:
+        print('loading optimizer state...')
+        optimizer.load_state_dict(torch.load(optimizer_state))
     scheduler = CosineAnnealingLR(optimizer, T_max=steps)
 
     init_wandb(name="train-cosine-next-c-s=" + str(model.next_code_cells))
