@@ -179,6 +179,9 @@ def run_train_all_new(state: State, model, rand_seed=787788, optimizer_state=Non
     if optimizer_state is not None:
         print('loading optimizer state...')
         optimizer.load_state_dict(torch.load(optimizer_state))
+        for param_group in optimizer.param_groups:
+            param_group['lr'] = learning_rate
+            
     scheduler = CosineAnnealingLR(optimizer, T_max=steps)
 
     init_wandb(name="train-cosine-next-c-s=" + str(model.next_code_cells))
@@ -204,7 +207,7 @@ def run_train_all_new(state: State, model, rand_seed=787788, optimizer_state=Non
             scheduler.step()
         
         if id > 10:
-            wandb.log({'loss': last_loss})
+            wandb.log({'loss': last_loss, 'learning_rate':scheduler.get_last_lr()})
 
         if (id % 10000 == 9999):
             print('Saving model after', id)
