@@ -205,9 +205,9 @@ def run_train_all_new(state: State, model, rand_seed=787788, optimizer_state=Non
             optimizer.step()
             optimizer.zero_grad()
             scheduler.step()
-        
+            
         if id > 10:
-            wandb.log({'loss': last_loss, 'learning_rate':scheduler.get_last_lr()})
+            wandb.log({'loss': last_loss, 'learning_rate':scheduler.get_last_lr()[0]})
 
         if (id % 10000 == 9999):
             print('Saving model after', id)
