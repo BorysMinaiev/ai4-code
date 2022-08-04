@@ -1,3 +1,3 @@
-typings/*
-dist/*
-node_modules/*
+viz/typings/*
+viz/dist/*
+viz/node_modules/*
