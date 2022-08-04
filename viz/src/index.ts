@@ -1,6 +1,7 @@
 const NB_ID = "nb_id";
 const MY_ORDER = "my_order";
 const CUR_SOURCE = "cur_source";
+const CELLS_LIST = "cells_list";    
 
 const OFFSET = 30;
 const R = 15;
@@ -67,7 +68,7 @@ class DrawingApp {
         this.context = context;
 
         // this.redraw();
-        this.redraw2();
+        this.redraw2(true);
         this.createUserEvents();
     }
 
@@ -86,7 +87,7 @@ class DrawingApp {
     }
 
 
-    public redraw2() {
+    public redraw2(full : boolean) {
         // this.canvas.width = this.canvas.offsetWidth;
         this.clearCanvas();
         const nb_id = get_current_nb_id();
@@ -147,11 +148,46 @@ class DrawingApp {
 
         }
 
-        get_elem(CUR_SOURCE).innerHTML = lastChosenId;
-        if (currentNb.nb_id == nb_id) {
-            const source = currentNb.source[lastChosenId];
-            // console.log(source);
-            get_elem(CUR_SOURCE).textContent = source;
+        
+        if (full) {
+            const all_cells = get_elem(CELLS_LIST); 
+            all_cells.textContent = '';
+
+            if (currentNb.nb_id == nb_id) {
+                let my_pos = my_order.indexOf(lastChosenId);
+                while (my_pos != my_order.length && currentNb.cell_type[my_order[my_pos]] != "code") {
+                    my_pos += 1;
+                }
+                const next_code_cell_id = my_pos == my_order.length ? 'END' : my_order[my_pos];
+                const show_chosen_cell = currentNb.cell_type[lastChosenId] == "markdown";
+
+                for (let i = 0; i < correct_order.length; i++) {
+                    const cell_id = correct_order[i];
+                    const cell_type = currentNb.cell_type[cell_id];
+                    if (show_chosen_cell) {
+                        if (cell_id == next_code_cell_id) {
+                            const new_cell = document.createElement('pre');
+                            new_cell.setAttribute('id', 'my_cell');
+                            new_cell.textContent = currentNb.source[lastChosenId];
+                            all_cells.appendChild(new_cell);
+                        }
+                        if (cell_id == lastChosenId) {
+                            const new_cell = document.createElement('pre');
+                            new_cell.setAttribute('id', 'correct_cell');
+                            new_cell.textContent = currentNb.source[cell_id];
+                            all_cells.appendChild(new_cell);
+                        }
+                    }
+                    if (cell_type == "code") {
+                        const new_cell = document.createElement('pre');
+                        new_cell.setAttribute('id', 'cell');
+                        new_cell.textContent = currentNb.source[cell_id];
+                        all_cells.appendChild(new_cell);
+                    }
+                    
+                }
+            }
+
         }
     }
 
@@ -174,7 +210,7 @@ class DrawingApp {
         const closestId = findClosestId(mouseX, mouseY);
         if (closestId != lastClosestId) {
             lastClosestId = closestId;
-            this.redraw2();
+            this.redraw2(false);
         }
 
         e.preventDefault();
@@ -194,7 +230,7 @@ class DrawingApp {
 
     private addClick() {
         lastChosenId = lastClosestId;
-        this.redraw2();
+        this.redraw2(true);
     }
 
     private clearCanvas() {
@@ -245,7 +281,7 @@ const fetchOrders = async () => {
                 correctOrders[item[0]] = item[1].split(" ");
             }
             console.log("done2!");
-            app.redraw2();
+            app.redraw2(true);
             reloadNotebook();
         }
     })
@@ -263,7 +299,7 @@ function setChangeHandlerNbId() {
 
     function reload_order() {
         get_elem(MY_ORDER).value = get_local(get_order_key(elem.value));
-        app.redraw2();
+        app.redraw2(true);
     }
 
     reload_order();
@@ -293,7 +329,7 @@ function setChangeHandlerMyOrder() {
     const elem = get_elem(MY_ORDER);
     elem.onkeyup = (_e: KeyboardEvent) => {
         save_local(get_order_key(get_current_nb_id()), elem.value);
-        app.redraw2();
+        app.redraw2(true);
     };
 }
 
@@ -340,6 +376,6 @@ const reloadNotebook = async () => {
         source: data['source']
     };
     console.log('reloaded');
-    app.redraw2();
+    app.redraw2(true);
 }
 
