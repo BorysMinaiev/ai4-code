@@ -131,6 +131,7 @@ class DrawingApp {
                     throw "bad cell_type";
                 }
             } else {
+                console.log('current nb is different. nb_id=', nb_id, '. loaded:', currentNb.nb_id);
                 ctx.strokeStyle = 'black';
             }
             if (correct_order[i] == lastChosenId) {
@@ -230,6 +231,7 @@ class DrawingApp {
 
     private addClick() {
         lastChosenId = lastClosestId;
+        // console.log('selected cell id:', lastChosenId);
         this.redraw2(true);
     }
 
@@ -300,6 +302,7 @@ function setChangeHandlerNbId() {
     function reload_order() {
         get_elem(MY_ORDER).value = get_local(get_order_key(elem.value));
         app.redraw2(true);
+        // reloadNotebook();
     }
 
     reload_order();
@@ -322,7 +325,7 @@ function get_my_order() {
     if (e == null) {
         return [];
     }
-    return e.value.split(",");
+    return e.value.trim().split(",");
 }
 
 function setChangeHandlerMyOrder() {
@@ -358,11 +361,11 @@ const reloadNotebook = async () => {
     if (nb_id == "") {
         return;
     }
-    const correct_order = correctOrders[nb_id];
-    if (correct_order.length == 0) {
+    if (currentNb.nb_id == nb_id) {
         return;
     }
-    if (currentNb.nb_id == nb_id) {
+    const correct_order = correctOrders[nb_id];
+    if (correct_order.length == 0) {
         return;
     }
     console.log('reload', nb_id);
@@ -379,3 +382,7 @@ const reloadNotebook = async () => {
     app.redraw2(true);
 }
 
+(function my_func() {
+    reloadNotebook();
+    setTimeout( my_func, 500 );
+})();
