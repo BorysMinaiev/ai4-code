@@ -150,34 +150,26 @@ class DrawingApp {
         get_elem(CUR_SOURCE).innerHTML = lastChosenId;
         if (currentNb.nb_id == nb_id) {
             const source = currentNb.source[lastChosenId];
-            console.log(source);
+            // console.log(source);
             get_elem(CUR_SOURCE).textContent = source;
         }
     }
 
 
     private pressEventHandler = (e: MouseEvent | TouchEvent) => {
-        let mouseX = (e as TouchEvent).changedTouches ?
-            (e as TouchEvent).changedTouches[0].pageX :
-            (e as MouseEvent).pageX;
-        let mouseY = (e as TouchEvent).changedTouches ?
-            (e as TouchEvent).changedTouches[0].pageY :
-            (e as MouseEvent).pageY;
-        mouseX -= this.canvas.offsetLeft;
-        mouseY -= this.canvas.offsetTop;
-
-        this.addClick(mouseX, mouseY, false);
+        this.addClick();
     }
 
     private dragEventHandler = (e: MouseEvent | TouchEvent) => {
         let mouseX = (e as TouchEvent).changedTouches ?
             (e as TouchEvent).changedTouches[0].pageX :
-            (e as MouseEvent).pageX;
+            (e as MouseEvent).x;
         let mouseY = (e as TouchEvent).changedTouches ?
             (e as TouchEvent).changedTouches[0].pageY :
-            (e as MouseEvent).pageY;
-        mouseX -= this.canvas.offsetLeft;
-        mouseY -= this.canvas.offsetTop;
+            (e as MouseEvent).y;
+        var rect = this.canvas.getBoundingClientRect();
+        mouseX -= rect.left;
+        mouseY -= rect.top;
 
         const closestId = findClosestId(mouseX, mouseY);
         if (closestId != lastClosestId) {
@@ -200,7 +192,7 @@ class DrawingApp {
 
     }
 
-    private addClick(x: number, y: number, dragging: boolean) {
+    private addClick() {
         lastChosenId = lastClosestId;
         this.redraw2();
     }

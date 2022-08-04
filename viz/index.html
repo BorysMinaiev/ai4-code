@@ -14,22 +14,24 @@
     <textarea type="text" id="my_order" name="my_order" cols="60" rows="4"></textarea>
     <br><br>
 
-    <div class="row">
-        <div class="column">
-            <div>
-                <p>Blue lines - markdowns cells.
-                Black lines - code cells.
-                Left - correct pos.
-                Right - my pos.
-                Try to click on lines (near the edge).</p>
-            </div>
-            <canvas id="canvas" width="800" height="2500">
-            </canvas>
-        </div>
-        <div class="column">
-            <p id="cur_source" >Some text</p>
-        </div>
-    </div>
+    <table>
+        <tr>
+            <td style="width: 50%;">
+                <div>
+                    <p>Blue lines - markdowns cells.
+                    Black lines - code cells.
+                    Left - correct pos.
+                    Right - my pos.
+                    Try to click on lines (near the edge).</p>
+                </div>
+                <canvas id="canvas" width="800" height="2500">
+                </canvas>
+            </td>
+            <td style="width: 50%;">
+                <p id="cur_source" style="background-color:rgb(219, 247, 251); border-radius: 25px; padding: 15px;" >Some text</p>
+            </td>
+        </tr>
+    </table>
     <script src="dist/main.js"></script>
 </body>
 
