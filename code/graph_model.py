@@ -1,3 +1,4 @@
+from language import get_translator, detect_nb_lang
 import math
 from common import sim
 from cosine_train import end_token
@@ -280,12 +281,23 @@ class Embedding:
 
 @torch.no_grad()
 def get_nb_embeddings(state: State, model, nb):
+    translator = None
+
+    if len(state.config.translate_langs) != 0:
+        lang = detect_nb_lang(nb)
+        if lang in state.config.translate_langs:
+            print('Will translate from', lang)
+        translator = get_translator(lang, 'en')
+
     def get_code(cell_id):
         if cell_id == end_token:
             return end_token
         source = nb.loc[cell_id]['source']
-        if state.config.clean_html:
-            return clean_html(source)
+        if nb.loc[cell_id]['cell_type'] == 'markdown':
+            if state.config.clean_html:
+                source = clean_html(source)
+            if translator is not None:
+                source = translator.translate([source])[0]
         return source
 
     code_cells = get_code_cells(nb).tolist()
