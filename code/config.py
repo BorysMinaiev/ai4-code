@@ -13,7 +13,7 @@ class Config:
     cosine_minibatch_size: int
     cosine_batch_size: int
     use_simple_ensemble_model = True
-    clean_html = True
+    clean_html = False
 
 
 def get_local_config():
