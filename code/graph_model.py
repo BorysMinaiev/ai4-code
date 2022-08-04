@@ -14,7 +14,7 @@ from wandb_helper import init_wandb
 from tqdm import tqdm
 from dataclasses import dataclass
 
-from common import split_into_batches, get_code_cells
+from common import split_into_batches, get_code_cells, clean_html
 from state import State
 
 import torch
@@ -154,7 +154,8 @@ class MyGraphModel(nn.Module):
         output_dir = Path(".")
         output_path = os.path.join(
             output_dir, 'graph-model-{}.bin'.format(suffix))
-        torch.save({'state_dict':self.state_dict(), 'next_code_cells':self.next_code_cells, 'coef_mul':self.coef_mul}, output_path)
+        torch.save({'state_dict': self.state_dict(
+        ), 'next_code_cells': self.next_code_cells, 'coef_mul': self.coef_mul}, output_path)
         print("Saved model to {}".format(output_path))
         if optimizer is not None:
             output_path = os.path.join(
@@ -276,12 +277,16 @@ class Embedding:
     cell_id: str
     text: str
 
+
 @torch.no_grad()
 def get_nb_embeddings(state: State, model, nb):
     def get_code(cell_id):
         if cell_id == end_token:
             return end_token
-        return nb.loc[cell_id]['source']
+        source = nb.loc[cell_id]['source']
+        if state.config.clean_html:
+            return clean_html(source)
+        return source
 
     code_cells = get_code_cells(nb).tolist()
     code_cells.append(end_token)
@@ -289,7 +294,7 @@ def get_nb_embeddings(state: State, model, nb):
     to_convert = [Embedding(cell_id=end_token, text=end_token)]
 
     for cell_id in nb.index:
-        text=get_code(cell_id)
+        text = get_code(cell_id)
         if cell_id in code_cells:
             idx = code_cells.index(cell_id)
             more_code_cells = code_cells[idx+1:idx+model.next_code_cells]

@@ -7,6 +7,7 @@ import pandas as pd  # data processing, CSV file I/O (e.g. pd.read_csv)
 import numpy as np  # linear algebra
 import torch
 import math
+import re
 from config import Config
 
 pd.options.display.width = 180
@@ -83,3 +84,13 @@ class OneCell:
     score: float
     cell_id: str
     cell_type: str
+
+
+CLEANR = re.compile('<.*?>')
+
+# TODO: hope it will not timeout...
+
+
+def clean_html(raw_html):
+    cleantext = re.sub(CLEANR, '', raw_html)
+    return cleantext
