@@ -17,6 +17,7 @@ class State:
     cur_train_nbs: list
     config: Config
     device: str
+    translators = {}
 
     def __init__(self, config: Config):
         self.config = config

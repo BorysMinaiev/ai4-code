@@ -2,11 +2,17 @@ from typing import Sequence
 from transformers import MarianMTModel, MarianTokenizer
 from langdetect import detect
 from common import get_markdown_cells
+from state import State
+import torch
 
+def conv_lang_name(x):
+    if x == "zh-cn":
+        return "zh"
+    return x
 
 def detect_lang(x):
     try:
-        return detect(x)
+        return conv_lang_name(detect(x))
     except:
         return 'other'
 
@@ -38,18 +44,18 @@ class Translator:
         self.model = MarianMTModel.from_pretrained(self.model_name)
         self.tokenizer = MarianTokenizer.from_pretrained(self.model_name)
 
-    def translate(self, texts: Sequence[str]) -> Sequence[str]:
-        # TODO: max_len?
-        tokens = self.tokenizer(list(texts), return_tensors="pt", padding=True)
+    @torch.no_grad()
+    def translate(self, state:State, texts: Sequence[str]) -> Sequence[str]:
+        tokens = self.tokenizer(list(texts), return_tensors="pt", padding='longest', max_length=256)
+        tokens.to(state.device)
         translate_tokens = self.model.generate(**tokens)
         return [self.tokenizer.decode(t, skip_special_tokens=True) for t in translate_tokens]
 
 
-translators = {}
-
-
-def get_translator(source: str, dest: str):
+def get_translator(state: State, source: str, dest: str):
     key = source + "->" + dest
-    if key not in translators:
-        translators[key] = Translator(source, dest)
-    return translators[key]
+    if key not in state.translators:
+        print('creating new translator...', len(state.translators))
+        state.translators[key] = Translator(source, dest)
+        state.translators[key].model.to(state.device)
+    return state.translators[key]

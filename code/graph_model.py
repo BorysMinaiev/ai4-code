@@ -285,9 +285,12 @@ def get_nb_embeddings(state: State, model, nb):
 
     if len(state.config.translate_langs) != 0:
         lang = detect_nb_lang(nb)
+        if lang != 'en':
+            print('cur lang:', lang)
         if lang in state.config.translate_langs:
             print('Will translate from', lang)
-        translator = get_translator(lang, 'en')
+            translator = get_translator(state, lang, 'en')
+            print('Translator model loaded...')
 
     def get_code(cell_id):
         if cell_id == end_token:
@@ -297,7 +300,8 @@ def get_nb_embeddings(state: State, model, nb):
             if state.config.clean_html:
                 source = clean_html(source)
             if translator is not None:
-                source = translator.translate([source])[0]
+                # TODO: batch stuff if it is too slow
+                source = translator.translate(state, [source])[0]
         return source
 
     code_cells = get_code_cells(nb).tolist()
