@@ -4,6 +4,7 @@ import pandas as pd
 from tqdm import tqdm
 import common
 import torch
+from easynmt import EasyNMT
 
 
 @dataclass
@@ -17,7 +18,8 @@ class State:
     cur_train_nbs: list
     config: Config
     device: str
-    translators = {}
+    easymnt = None
+    translators = {'ru'}
 
     def __init__(self, config: Config):
         self.config = config
@@ -25,6 +27,7 @@ class State:
             "cuda" if torch.cuda.is_available() else "cpu")
         self.load_df_orders()
         self.load_df_ancestors()
+        self.easymnt = EasyNMT('mbart50_m2m')
 
     def load_df_orders(self):
         self.df_orders = pd.read_csv(

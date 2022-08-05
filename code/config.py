@@ -14,7 +14,7 @@ class Config:
     cosine_batch_size: int
     use_simple_ensemble_model = True
     clean_html = False
-    translate_langs = []
+    translate_langs = ['ru', 'it', 'es', 'tr', 'zh', 'de', 'ko']
 
 
 def get_local_config():
