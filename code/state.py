@@ -4,7 +4,7 @@ import pandas as pd
 from tqdm import tqdm
 import common
 import torch
-from easynmt import EasyNMT
+# from easynmt import EasyNMT
 
 
 @dataclass
@@ -27,7 +27,7 @@ class State:
             "cuda" if torch.cuda.is_available() else "cpu")
         self.load_df_orders()
         self.load_df_ancestors()
-        self.easymnt = EasyNMT('mbart50_m2m')
+        # self.easymnt = EasyNMT('mbart50_m2m')
 
     def load_df_orders(self):
         self.df_orders = pd.read_csv(
@@ -96,3 +96,23 @@ class State:
     def load_one_nb(self, nb_id):
         self.load_train_nbs_helper([nb_id])
         return self.cur_train_nbs.loc[nb_id]
+
+    def load_additional_data(self, nrows=None):
+        parsed = pd.read_csv(self.config.data_dir / 'data.csv', nrows=nrows)
+        parsed = parsed.rename(
+            columns={'rank': 'cell_id', 'notebook_id': 'id'})
+        parsed['id'] = parsed['id'].apply(str)
+        parsed = parsed.set_index('id')
+        parsed = parsed.set_index('cell_id', append=True)
+
+        all = parsed.index.get_level_values(0).unique()
+        ids = []
+        orders = []
+        for nb_id in all:
+            nb = parsed.loc[nb_id]
+            order = list(nb.index)
+            ids.append(str(nb_id))
+            orders.append(order)
+
+        self.df_orders = pd.Series(data=orders, index=ids)
+        self.cur_train_nbs = parsed
