@@ -1,3 +1,5 @@
+from language import detect_nb_lang
+from common import clean_html
 import random
 import torch
 import numpy as np
@@ -73,6 +75,9 @@ def gen_batches(state: State, next_code_cells_cnt, sep_token, rand_seed):
     minibatches = []
     for nb_id in tqdm(all):
         nb = df.loc[nb_id]
+
+        lang = detect_nb_lang(nb)
+
         correct_order = state.df_orders.loc[nb_id]
         correct_order.append(end_token)
         markdown_cell_ids = get_markdown_cells(nb)
@@ -88,6 +93,12 @@ def gen_batches(state: State, next_code_cells_cnt, sep_token, rand_seed):
                 res += sep_token + get_code(cell)
             return res
 
+        def transform_markdown(text):
+            text = clean_html(text)
+            if lang != 'en':
+                text = state.easymnt.translate(text, target_lang='en')
+            return text
+
         samples = []
         for pos, cell_id in enumerate(correct_order):
             if cell_id in markdown_cell_ids:
@@ -99,7 +110,7 @@ def gen_batches(state: State, next_code_cells_cnt, sep_token, rand_seed):
                             break
                 assert len(next_code_cells) != 0
                 samples.append(
-                    Sample(markdown=nb.loc[cell_id]['source'], code=get_codes(next_code_cells)))
+                    Sample(markdown=transform_markdown(nb.loc[cell_id]['source']), code=get_codes(next_code_cells)))
         random.shuffle(samples)
         num_chunks = (len(samples) + state.config.cosine_minibatch_size -
                       1) // state.config.cosine_minibatch_size
@@ -172,8 +183,10 @@ def run_train_all_new(state: State, model, rand_seed=787788, optimizer_state=Non
     param_optimizer = list(model.named_parameters())
     no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight']
     optimizer_grouped_parameters = [
-        {'params': [p for n, p in param_optimizer if not any(nd in n for nd in no_decay)], 'weight_decay': 0.01},
-        {'params': [p for n, p in param_optimizer if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}
+        {'params': [p for n, p in param_optimizer if not any(
+            nd in n for nd in no_decay)], 'weight_decay': 0.01},
+        {'params': [p for n, p in param_optimizer if any(
+            nd in n for nd in no_decay)], 'weight_decay': 0.0}
     ]
     optimizer = AdamW(optimizer_grouped_parameters, lr=learning_rate, eps=1e-8)
     if optimizer_state is not None:
@@ -181,33 +194,34 @@ def run_train_all_new(state: State, model, rand_seed=787788, optimizer_state=Non
         optimizer.load_state_dict(torch.load(optimizer_state))
         for param_group in optimizer.param_groups:
             param_group['lr'] = learning_rate
-            
+
     scheduler = CosineAnnealingLR(optimizer, T_max=steps)
 
     init_wandb(name="train-cosine-next-c-s=" + str(model.next_code_cells))
 
     last_loss = 0.0
-    
+
     sum_batch_losses = 0.0
     cnt_batch_losses = 0
-    
+
     for id, batch in enumerate(tqdm(batches)):
         cur_loss = train_on_batch(state, batch, model)
-        
+
         sum_batch_losses += cur_loss
         cnt_batch_losses += 1
         if cnt_batch_losses == grad_batch_sz:
             last_loss = sum_batch_losses / cnt_batch_losses
             sum_batch_losses = 0.0
             cnt_batch_losses = 0
-            
+
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
             optimizer.step()
             optimizer.zero_grad()
             scheduler.step()
-            
+
         if id > 10:
-            wandb.log({'loss': last_loss, 'learning_rate':scheduler.get_last_lr()[0]})
+            wandb.log(
+                {'loss': last_loss, 'learning_rate': scheduler.get_last_lr()[0]})
 
         if (id % 10000 == 9999):
             print('Saving model after', id)
@@ -216,5 +230,3 @@ def run_train_all_new(state: State, model, rand_seed=787788, optimizer_state=Non
     wandb.finish()
     model.save('graph3-cur-final', optimizer=optimizer)
     # TODO: save model/optimizer/scheduler
-
-
