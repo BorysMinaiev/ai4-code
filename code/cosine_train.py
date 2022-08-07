@@ -76,8 +76,6 @@ def gen_batches(state: State, next_code_cells_cnt, sep_token, rand_seed):
     for nb_id in tqdm(all):
         nb = df.loc[nb_id]
 
-        lang = detect_nb_lang(nb)
-
         correct_order = state.df_orders.loc[nb_id]
         correct_order.append(end_token)
         markdown_cell_ids = get_markdown_cells(nb)
@@ -93,12 +91,6 @@ def gen_batches(state: State, next_code_cells_cnt, sep_token, rand_seed):
                 res += sep_token + get_code(cell)
             return res
 
-        def transform_markdown(text):
-            text = clean_html(text)
-            if lang != 'en':
-                text = state.easymnt.translate(text, target_lang='en')
-            return text
-
         samples = []
         for pos, cell_id in enumerate(correct_order):
             if cell_id in markdown_cell_ids:
@@ -110,7 +102,7 @@ def gen_batches(state: State, next_code_cells_cnt, sep_token, rand_seed):
                             break
                 assert len(next_code_cells) != 0
                 samples.append(
-                    Sample(markdown=transform_markdown(nb.loc[cell_id]['source']), code=get_codes(next_code_cells)))
+                    Sample(markdown=nb.loc[cell_id]['source'], code=get_codes(next_code_cells)))
         random.shuffle(samples)
         num_chunks = (len(samples) + state.config.cosine_minibatch_size -
                       1) // state.config.cosine_minibatch_size

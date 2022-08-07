@@ -98,10 +98,11 @@ class State:
         return self.cur_train_nbs.loc[nb_id]
 
     def load_additional_data(self, nrows=None):
-        parsed = pd.read_csv(self.config.data_dir / 'data.csv', nrows=nrows)
+        parsed = pd.read_csv(self.config.data_dir / 'data.csv', nrows=nrows, dtype={'source': 'str'})
         parsed = parsed.rename(
             columns={'rank': 'cell_id', 'notebook_id': 'id'})
         parsed['id'] = parsed['id'].apply(str)
+        parsed['source'] = parsed['source'].apply(str)
         parsed = parsed.set_index('id')
         parsed = parsed.set_index('cell_id', append=True)
 

@@ -281,27 +281,16 @@ class Embedding:
 
 @torch.no_grad()
 def get_nb_embeddings(state: State, model, nb):
-    translator = None
-
-    need_translation = False
-    
-    if len(state.config.translate_langs) != 0:
-        lang = detect_nb_lang(nb)
-        if lang in state.config.translate_langs:
-            #translator = get_translator(state, lang, 'en')
-            need_translation = True
-        if lang not in ['en']:
-            need_translation = True
 
     def get_code(cell_id):
         if cell_id == end_token:
             return end_token
         source = nb.loc[cell_id]['source']
-        if nb.loc[cell_id]['cell_type'] == 'markdown':
-            if state.config.clean_html:
-                source = clean_html(source)
-            if state.easymnt is not None and need_translation:
-                source = state.easymnt.translate(source, target_lang='en')
+        # if nb.loc[cell_id]['cell_type'] == 'markdown':
+        #     if state.config.clean_html:
+        #         source = clean_html(source)
+        #     if state.easymnt is not None and need_translation:
+        #         source = state.easymnt.translate(source, target_lang='en')
                 #print('translated:')
                 #print(source)
             # if translator is not None:
