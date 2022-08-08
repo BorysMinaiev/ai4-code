@@ -290,6 +290,18 @@ class Model(nn.Module):
         outputs = self.encoder(inputs)[1]
         return torch.nn.functional.normalize(outputs, p=2, dim=1)
 
+    def save(self, suffix):
+        output_dir = Path(".")
+        model_to_save = self.encoder.model
+        output_dir = os.path.join(output_dir, 'model-{}.bin'.format(suffix))
+        torch.save(model_to_save.state_dict(), output_dir)
+        print("Saved model to {}".format(output_dir))
+
+    def get_texts_tokens(self, texts, state):
+        tokens = self.encoder.tokenize(
+            texts, max_length=512, mode="<encoder-only>", padding=True)
+        return torch.tensor(tokens).to(state.device)
+
 
 def reload_model(state: State, state_dict):
     unixcoder_model = UniXcoder(
