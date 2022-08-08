@@ -367,6 +367,7 @@ class EnsembleModel(nn.Module):
         per_model = self.top(joined)
         return self.softmax(per_model)
 
+    
     def save(self, suffix):
         output_dir = Path(".")
         output_path = os.path.join(

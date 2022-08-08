@@ -1,4 +1,3 @@
-from language import get_translator, detect_nb_lang
 import math
 from common import sim
 from cosine_train import end_token

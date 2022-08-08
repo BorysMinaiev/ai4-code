@@ -1,4 +1,3 @@
-from language import detect_nb_lang
 from common import clean_html
 import random
 import torch
