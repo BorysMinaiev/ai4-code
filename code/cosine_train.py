@@ -104,6 +104,8 @@ def gen_batches(state: State, next_code_cells_cnt, sep_token, rand_seed):
                 samples.append(
                     Sample(markdown=nb.loc[cell_id]['source'], code=get_codes(next_code_cells)))
         random.shuffle(samples)
+        if len(samples) == 0:
+            continue
         num_chunks = (len(samples) + state.config.cosine_minibatch_size -
                       1) // state.config.cosine_minibatch_size
 
